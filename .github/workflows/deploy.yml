@@ -19,5 +19,3 @@ jobs:
             cd /home/admin/Toronto-Parking-Pass-Buyer
             git fetch origin
             git reset --hard origin/main
-            chmod -R 755 .
-            chown -R admin:admin .
