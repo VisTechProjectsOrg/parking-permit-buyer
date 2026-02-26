@@ -232,6 +232,7 @@ if ($permit && !$isHistorical && file_exists($historyFile) && isWeeklyPermit($pe
             background: #1a1f2e;
             color: #e2e8f0;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             padding: 16px;
