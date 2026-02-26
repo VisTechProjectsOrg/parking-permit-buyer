@@ -198,6 +198,23 @@ $percentChange = $firstPrice > 0 ? (($currentPrice - $firstPrice) / $firstPrice)
             color: #8892a6;
             padding: 30px;
         }
+        .project-links {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            margin-top: 12px;
+            max-width: 500px;
+            width: 100%;
+            font-size: 11px;
+        }
+        .project-links a {
+            color: #5a6378;
+            text-decoration: none;
+        }
+        .project-links a:hover {
+            color: #8892a6;
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -261,6 +278,11 @@ $percentChange = $firstPrice > 0 ? (($currentPrice - $firstPrice) / $firstPrice)
             <a href="<?= $urlBase ?>/" class="link">Current Permit</a>
             <a href="<?= $urlBase ?>/history/" class="link">Permit History</a>
         </div>
+    </div>
+    <div class="project-links">
+        <a href="https://github.com/VisTechProjectsOrg/parking-permit-buyer" target="_blank">Auto-buyer</a>
+        <a href="https://github.com/VisTechProjectsOrg/parking-permit-display" target="_blank">E-ink Display</a>
+        <a href="https://github.com/VisTechProjectsOrg/parking-permit-android" target="_blank">Android App</a>
     </div>
 </body>
 </html>

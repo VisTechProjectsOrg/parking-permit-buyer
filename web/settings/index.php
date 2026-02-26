@@ -473,6 +473,23 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
         .link:hover {
             text-decoration: underline;
         }
+        .project-links {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            margin-top: 12px;
+            max-width: 400px;
+            width: 100%;
+            font-size: 11px;
+        }
+        .project-links a {
+            color: #5a6378;
+            text-decoration: none;
+        }
+        .project-links a:hover {
+            color: #8892a6;
+            text-decoration: underline;
+        }
         .warning {
             background: #1e2433;
             border-left: 4px solid #ff9800;
@@ -951,5 +968,10 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
 
         console.log('%c Settings Page ', 'background: #2a3142; color: #64b5f6; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
     </script>
+    <div class="project-links">
+        <a href="https://github.com/VisTechProjectsOrg/parking-permit-buyer" target="_blank">Auto-buyer</a>
+        <a href="https://github.com/VisTechProjectsOrg/parking-permit-display" target="_blank">E-ink Display</a>
+        <a href="https://github.com/VisTechProjectsOrg/parking-permit-android" target="_blank">Android App</a>
+    </div>
 </body>
 </html>

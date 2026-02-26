@@ -419,6 +419,23 @@ $permits = array_reverse($permits);
                 font-size: 13px;
             }
         }
+        .project-links {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            margin-top: 12px;
+            max-width: 800px;
+            width: 100%;
+            font-size: 11px;
+        }
+        .project-links a {
+            color: #5a6378;
+            text-decoration: none;
+        }
+        .project-links a:hover {
+            color: #8892a6;
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -639,5 +656,10 @@ If you're already here, check out my other automated bullshit:
 🖕 E-ink display: https://github.com/VisTechProjects/parking-permit-display
         `, 'color: #4caf50; font-family: monospace;');
     </script>
+    <div class="project-links">
+        <a href="https://github.com/VisTechProjectsOrg/parking-permit-buyer" target="_blank">Auto-buyer</a>
+        <a href="https://github.com/VisTechProjectsOrg/parking-permit-display" target="_blank">E-ink Display</a>
+        <a href="https://github.com/VisTechProjectsOrg/parking-permit-android" target="_blank">Android App</a>
+    </div>
 </body>
 </html>
