@@ -314,6 +314,21 @@ if ($permit && !$isHistorical && file_exists($historyFile) && isWeeklyPermit($pe
             font-size: 14px;
         }
         .link:hover { text-decoration: underline; }
+        .project-links {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            margin-top: 12px;
+            font-size: 11px;
+        }
+        .project-links a {
+            color: #5a6378;
+            text-decoration: none;
+        }
+        .project-links a:hover {
+            color: #8892a6;
+            text-decoration: underline;
+        }
         .autobuyer-warning {
             background: #1e2433;
             border-left: 4px solid #ff9800;
@@ -460,6 +475,11 @@ if ($permit && !$isHistorical && file_exists($historyFile) && isWeeklyPermit($pe
                 <a href="<?= $urlBase ?>/history/" class="link">Permit History</a>
             </div>
         <?php endif; ?>
+    </div>
+    <div class="project-links">
+        <a href="https://github.com/VisTechProjectsOrg/parking-permit-buyer" target="_blank">Auto-buyer</a>
+        <a href="https://github.com/VisTechProjectsOrg/parking-permit-display" target="_blank">E-ink Display</a>
+        <a href="https://github.com/VisTechProjectsOrg/parking-permit-android" target="_blank">Android App</a>
     </div>
     <script>
         // A special message for those who look
