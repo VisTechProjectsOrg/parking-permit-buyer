@@ -20,5 +20,7 @@ if ($isLocal) {
     $settingsFile = $basePath . '/config/settings.json';
     $carsFile = $basePath . '/config/info_cars.json';
     $envFile = $basePath . '/.env';
-    $urlBase = '/parking';  // Production: /parking prefix
+    // fucktorontoparking.ca serves from root, ilovekitty.ca serves from /parking
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    $urlBase = (strpos($host, 'fucktorontoparking.ca') !== false) ? '' : '/parking';
 }
