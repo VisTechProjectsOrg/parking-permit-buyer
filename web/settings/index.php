@@ -477,9 +477,7 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             display: flex;
             justify-content: center;
             gap: 16px;
-            margin-top: 12px;
-            max-width: 400px;
-            width: 100%;
+            margin: 12px auto 0;
             font-size: 11px;
         }
         .project-links a {
