@@ -319,6 +319,8 @@ if ($permit && !$isHistorical && file_exists($historyFile) && isWeeklyPermit($pe
             justify-content: center;
             gap: 16px;
             margin-top: 12px;
+            max-width: 400px;
+            width: 100%;
             font-size: 11px;
         }
         .project-links a {
