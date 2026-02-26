@@ -200,6 +200,14 @@ if ($permit && !$isHistorical && file_exists($historyFile) && isWeeklyPermit($pe
                             break;
                         }
                     }
+                    // Only show price change for the first week
+                    if ($priceChangeDate) {
+                        $changeDate = DateTime::createFromFormat('M j, Y', trim($priceChangeDate));
+                        if ($changeDate && (new DateTime())->diff($changeDate)->days > 7) {
+                            $priceChangeAmount = null;
+                            $priceChangeDate = null;
+                        }
+                    }
                     break;
                 }
             }
