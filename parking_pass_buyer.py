@@ -132,6 +132,17 @@ def load_settings():
             print(bcolors.WARNING + f"Warning: Could not load settings.json: {e}. Using defaults." + bcolors.ENDC)
     return defaults
 
+def save_settings():
+    """Persist the current in-memory settings dict back to config/settings.json."""
+    settings_path = Path(__file__).parent / 'config' / 'settings.json'
+    try:
+        with open(settings_path, 'w') as f:
+            json.dump(settings, f, indent=4)
+        return True
+    except Exception as e:
+        print(bcolors.WARNING + f"Warning: Could not save settings.json: {e}" + bcolors.ENDC)
+        return False
+
 settings = load_settings()
 
 def is_notification_enabled(notification_type):
@@ -1973,6 +1984,11 @@ Examples:
 
             # Send success email
             if is_notification_enabled('purchase_success'):
+                price_change_info = check_price_change(permit_data.get('amount_paid'))
+                if price_change_info[0]:
+                    # Persist new price so subsequent permits at the same price don't re-alert
+                    settings.setdefault("pricing", {})["expected_weekly_price"] = price_change_info[2]
+                    save_settings()
                 send_email_notification(
                     subject=f"Parking Permit Purchased - {vehicle_plate}",
                     body=f"""Parking permit successfully purchased!
@@ -1987,7 +2003,7 @@ GitHub Push: {'Success' if github_success else 'Failed'}
                     html_body=build_success_email_html(
                         vehicle_name, vehicle_plate, permit_data,
                         github_success,
-                        price_change_info=check_price_change(permit_data.get('amount_paid'))
+                        price_change_info=price_change_info
                     )
                 )
         else:
