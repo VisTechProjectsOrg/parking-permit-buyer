@@ -8,6 +8,7 @@ $_branch = $_ver['branch'];
 ?>
 <?php if ($_commit && $_branch && $_branch !== 'main'): ?>
 <style>
+    body { padding-top: 32px !important; }
     .version-bar {
         position: fixed; top: 0; left: 0; right: 0;
         text-align: center;

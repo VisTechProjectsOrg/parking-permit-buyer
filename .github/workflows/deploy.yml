@@ -20,6 +20,9 @@ jobs:
             git fetch origin
             git reset --hard origin/main
             echo "$(git rev-parse --short HEAD) (main)" > version.txt
+            # Tighten perms on sensitive files (cards, address, env). Owner read/write only.
+            chmod 600 .env 2>/dev/null || true
+            chmod 600 config/*.json 2>/dev/null || true
             # Self-healing symlink sync: any file/dir under web/ becomes reachable
             # at the public_html webroot. .htaccess is left alone (real file there).
             WEBROOT=/home/admin/domains/fucktorontoparking.ca/public_html
