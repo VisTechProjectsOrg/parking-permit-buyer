@@ -272,15 +272,12 @@ $percentChange = $firstPrice > 0 ? (($currentPrice - $firstPrice) / $firstPrice)
         </div>
         <?php endif; ?>
 
-        <div class="links">
-            <a href="<?= $urlBase ?>/" class="link">Current Permit</a>
-            <a href="<?= $urlBase ?>/history/" class="link">Permit History</a>
-        </div>
     </div>
     <div class="project-links">
         <a href="https://github.com/VisTechProjectsOrg/parking-permit-buyer" target="_blank">Auto-buyer</a>
         <a href="https://github.com/VisTechProjectsOrg/parking-permit-display" target="_blank">E-ink Display</a>
         <a href="https://github.com/VisTechProjectsOrg/parking-permit-android" target="_blank">Android App</a>
     </div>
+    <?php include __DIR__ . '/../_partials/bottom_nav.php'; ?>
 </body>
 </html>

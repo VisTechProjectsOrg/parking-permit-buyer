@@ -482,6 +482,7 @@ if ($permit && !$isHistorical && file_exists($historyFile) && isWeeklyPermit($pe
         <a href="https://github.com/VisTechProjectsOrg/parking-permit-display" target="_blank">E-ink Display</a>
         <a href="https://github.com/VisTechProjectsOrg/parking-permit-android" target="_blank">Android App</a>
     </div>
+    <?php include __DIR__ . '/_partials/bottom_nav.php'; ?>
     <script>
         // A special message for those who look
         console.log(`%c

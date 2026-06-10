@@ -555,11 +555,6 @@ $permits = array_reverse($permits);
         </div>
 
         <div class="no-results" id="noResults">No permits match your filters</div>
-        <div style="display: flex; justify-content: center; gap: 20px; margin-top: 16px; padding-bottom: 20px;">
-            <a href="<?= $urlBase ?>/" class="back-link">Current Permit</a>
-            <a href="<?= $urlBase ?>/prices/" class="back-link">Price History</a>
-            <a href="<?= $urlBase ?>/settings/" class="back-link">Settings</a>
-        </div>
     </div>
 
     <script>
@@ -659,5 +654,6 @@ If you're already here, check out my other automated bullshit:
         <a href="https://github.com/VisTechProjectsOrg/parking-permit-display" target="_blank">E-ink Display</a>
         <a href="https://github.com/VisTechProjectsOrg/parking-permit-android" target="_blank">Android App</a>
     </div>
+    <?php include __DIR__ . '/../_partials/bottom_nav.php'; ?>
 </body>
 </html>

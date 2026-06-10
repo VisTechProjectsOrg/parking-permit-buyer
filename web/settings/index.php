@@ -806,11 +806,6 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             <button type="button" class="save-btn" onclick="showNotificationModal()">Save Notification Settings</button>
         </div>
 
-        <div class="links">
-            <a href="<?= $urlBase ?>/" class="link">Current Permit</a>
-            <a href="<?= $urlBase ?>/history/" class="link">Permit History</a>
-            <a href="<?= $urlBase ?>/prices/" class="link">Price History</a>
-        </div>
     </div>
 
     <!-- Password Modal -->
@@ -971,5 +966,6 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
         <a href="https://github.com/VisTechProjectsOrg/parking-permit-display" target="_blank">E-ink Display</a>
         <a href="https://github.com/VisTechProjectsOrg/parking-permit-android" target="_blank">Android App</a>
     </div>
+    <?php include __DIR__ . '/../_partials/bottom_nav.php'; ?>
 </body>
 </html>
