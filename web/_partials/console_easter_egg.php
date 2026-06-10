@@ -15,11 +15,13 @@
 
     // Linus's middle finger rendered in the console (Chrome/Edge/Firefox).
     // Self-hosted because Chrome blocks cross-origin images in %c background-image.
+    // GIF is 268x200, so padding is half each dimension and background-size is explicit.
     console.log(
-        '%c ',
-        'font-size: 0; line-height: 200px;' +
-        'padding: 100px 135px;' +
-        'background: url("<?= $urlBase ?>/static/linus_middle_finger.gif") center / contain no-repeat;'
+        '%c+',
+        'font-size: 1px; line-height: 0; color: transparent;' +
+        'padding: 100px 134px;' +
+        'background: url("<?= $urlBase ?>/static/linus_middle_finger.gif") no-repeat;' +
+        'background-size: 268px 200px;'
     );
 
     console.log(`%c
