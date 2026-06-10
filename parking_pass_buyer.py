@@ -145,6 +145,23 @@ def save_settings():
 
 settings = load_settings()
 
+def resolve_default_vehicle_index():
+    """Look up the default vehicle plate from settings and return its index in info_cars.json.
+    Falls back to index 0 if no default is set or the plate isn't found."""
+    cars_path = Path(__file__).parent / 'config' / 'info_cars.json'
+    try:
+        with open(cars_path) as f:
+            cars = json.load(f)
+    except Exception:
+        return 0
+    default_plate = (settings.get('autobuyer') or {}).get('default_vehicle')
+    if default_plate:
+        for i, car in enumerate(cars):
+            if car.get('plate', '').strip().upper() == default_plate.strip().upper():
+                return i
+    return 0
+
+
 def check_autobuyer_reenable():
     """If autobuyer is disabled with a re-enable date that's passed, flip it back on."""
     ab = settings.get('autobuyer') or {}
@@ -1637,6 +1654,11 @@ Examples:
     parser.add_argument('--dry-run', action='store_true', help='Test run: fill forms but stop before payment (no purchase)')
 
     args = parser.parse_args()
+
+    # When no --vehicle is given in headless mode, fall back to the default from settings
+    if args.vehicle is None and args.headless:
+        args.vehicle = resolve_default_vehicle_index()
+        print(bcolors.OKCYAN + f"Headless mode: using default vehicle index {args.vehicle} from settings" + bcolors.ENDC)
 
     # Configure headless mode if requested
     if args.headless:

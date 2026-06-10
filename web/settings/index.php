@@ -289,12 +289,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $message = 'Failed to save settings.';
                 $messageType = 'error';
             }
+        } elseif ($_POST['action'] === 'save_default_vehicle') {
+            $plate = trim($_POST['default_vehicle'] ?? '');
+            $settings['autobuyer'] = $settings['autobuyer'] ?? [];
+            $settings['autobuyer']['default_vehicle'] = $plate !== '' ? $plate : null;
+
+            if (file_put_contents($settingsFile, json_encode($settings, JSON_PRETTY_PRINT))) {
+                $message = 'Default vehicle saved.';
+                $messageType = 'success';
+            } else {
+                $message = 'Failed to save settings.';
+                $messageType = 'error';
+            }
         }
     }
 }
 
 // Get current state
 $autobuyerEnabled = $settings['autobuyer']['enabled'] ?? true;
+$defaultVehiclePlate = $settings['autobuyer']['default_vehicle'] ?? null;
+
+// Load cars for the default-vehicle dropdown
+$cars = [];
+if (file_exists($carsFile)) {
+    $cars = json_decode(file_get_contents($carsFile), true) ?: [];
+}
 
 // Calculate expected price from permit history (most recent permit)
 // $historyFile comes from config.php (auto-detects local vs prod path)
@@ -580,6 +599,21 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             color: #5a6378;
             margin-top: 6px;
         }
+        .vehicle-select {
+            width: 100%;
+            padding: 12px 16px;
+            background: #1a1f2e;
+            border: 1px solid #3a4255;
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-size: 14px;
+            margin-bottom: 12px;
+            color-scheme: dark;
+        }
+        .vehicle-select:focus {
+            outline: none;
+            border-color: #64b5f6;
+        }
         .modal-input {
             width: 100%;
             padding: 12px 16px;
@@ -771,6 +805,22 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             <?php endif; ?>
         </div>
 
+        <?php if (!empty($cars)): ?>
+        <div class="card">
+            <div class="header">
+                <span class="title">Default Vehicle</span>
+            </div>
+            <select id="defaultVehicleSelect" class="vehicle-select">
+                <?php foreach ($cars as $car): ?>
+                    <option value="<?= htmlspecialchars($car['plate']) ?>" <?= ($defaultVehiclePlate && strcasecmp($car['plate'], $defaultVehiclePlate) === 0) ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($car['name']) ?> (<?= htmlspecialchars($car['plate']) ?>)
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <button type="button" id="vehicleSaveBtn" class="save-btn" onclick="showVehicleModal()" style="display: none;">Save Default Vehicle</button>
+        </div>
+        <?php endif; ?>
+
         <div class="card">
             <div class="header">
                 <span class="title">Info</span>
@@ -880,6 +930,25 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
         </div>
     </div>
 
+    <!-- Default Vehicle Modal -->
+    <div class="modal-overlay" id="vehicleModalOverlay">
+        <div class="modal">
+            <div class="modal-title">Save Default Vehicle</div>
+            <div class="modal-desc">Enter password to confirm this change.</div>
+            <form method="POST" id="vehicleForm">
+                <input type="hidden" name="action" value="save_default_vehicle">
+                <input type="hidden" name="default_vehicle" id="hidden_default_vehicle">
+                <div class="password-wrapper">
+                    <input type="password" name="password" id="vehiclePasswordInput" class="modal-input" placeholder="Password" autocomplete="current-password" required>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="modal-btn cancel" onclick="hideVehicleModal()">Cancel</button>
+                    <button type="submit" class="modal-btn confirm save">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Notification Settings Modal -->
     <div class="modal-overlay" id="notificationModalOverlay">
         <div class="modal">
@@ -950,7 +1019,37 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             if (e.key === 'Escape') {
                 hideModal();
                 hideNotificationModal();
+                hideVehicleModal();
             }
+        });
+
+        // Toggle Save button visibility based on whether the selection differs from the saved default
+        (function () {
+            const sel = document.getElementById('defaultVehicleSelect');
+            const btn = document.getElementById('vehicleSaveBtn');
+            if (!sel || !btn) return;
+            const initial = sel.value;
+            sel.addEventListener('change', () => {
+                btn.style.display = (sel.value !== initial) ? '' : 'none';
+            });
+        })();
+
+        // Default vehicle modal functions
+        function showVehicleModal() {
+            document.getElementById('hidden_default_vehicle').value = document.getElementById('defaultVehicleSelect').value;
+            document.getElementById('vehicleModalOverlay').classList.add('active');
+            document.getElementById('vehiclePasswordInput').focus();
+        }
+
+        function hideVehicleModal() {
+            const overlay = document.getElementById('vehicleModalOverlay');
+            overlay.classList.remove('active');
+            const input = document.getElementById('vehiclePasswordInput');
+            input.value = '';
+        }
+
+        document.getElementById('vehicleModalOverlay').addEventListener('click', function(e) {
+            if (e.target === this) hideVehicleModal();
         });
 
         // Notification modal functions
