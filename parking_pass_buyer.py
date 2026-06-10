@@ -1659,6 +1659,10 @@ Examples:
     if args.vehicle is None and args.headless:
         args.vehicle = resolve_default_vehicle_index()
         print(bcolors.OKCYAN + f"Headless mode: using default vehicle index {args.vehicle} from settings" + bcolors.ENDC)
+    # Single-card setup: default to index 0 in headless mode when --card isn't given
+    if args.card is None and args.headless:
+        args.card = 0
+        print(bcolors.OKCYAN + "Headless mode: using card index 0 (only card)" + bcolors.ENDC)
 
     # Configure headless mode if requested
     if args.headless:
