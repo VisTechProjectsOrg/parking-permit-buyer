@@ -287,7 +287,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 $autobuyerEnabled = $settings['autobuyer']['enabled'] ?? true;
 
 // Calculate expected price from permit history (most recent permit)
-$historyFile = '/home/admin/Toronto-Parking-Pass-Buyer/permits_history.json';
+// $historyFile comes from config.php (auto-detects local vs prod path)
 $permits = [];
 if (file_exists($historyFile)) {
     $permits = json_decode(file_get_contents($historyFile), true) ?: [];

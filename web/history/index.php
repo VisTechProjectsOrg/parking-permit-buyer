@@ -630,7 +630,6 @@ $permits = array_reverse($permits);
         filterDate.addEventListener('change', applyFilters);
 
     </script>
-    <?php include __DIR__ . '/../_partials/console_easter_egg.php'; ?>
     <div class="project-links">
         <a href="https://github.com/VisTechProjectsOrg/parking-permit-buyer" target="_blank">Auto-buyer</a>
         <a href="https://github.com/VisTechProjectsOrg/parking-permit-display" target="_blank">E-ink Display</a>
@@ -638,5 +637,6 @@ $permits = array_reverse($permits);
     </div>
     <?php include __DIR__ . '/../_partials/bottom_nav.php'; ?>
     <?php include __DIR__ . '/../_partials/version_banner.php'; ?>
+    <?php include __DIR__ . '/../_partials/console_easter_egg.php'; ?>
 </body>
 </html>
