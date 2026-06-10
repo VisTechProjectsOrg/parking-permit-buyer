@@ -1,4 +1,8 @@
 <?php
+// Force Toronto timezone everywhere so emails and rendered dates are consistent
+// regardless of server config (Windows PHP defaults to UTC otherwise).
+date_default_timezone_set('America/Toronto');
+
 // Auto-detect local vs production environment
 $isLocal = (strpos($_SERVER['HTTP_HOST'] ?? '', 'localhost') !== false)
         || (strpos($_SERVER['HTTP_HOST'] ?? '', '127.0.0.1') !== false);

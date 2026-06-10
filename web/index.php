@@ -416,8 +416,17 @@ if ($permit && !$isHistorical && file_exists($historyFile) && isWeeklyPermit($pe
 <body>
     <div class="card">
         <?php if (!$autobuyerEnabled): ?>
+            <?php
+            $disabledUntil = $settings['autobuyer']['disabled_until'] ?? null;
+            $untilLabel = ($disabledUntil && preg_match('/^\d{4}-\d{2}-\d{2}$/', $disabledUntil))
+                ? date('M j', strtotime($disabledUntil)) : null;
+            ?>
             <div class="autobuyer-warning">
-                Auto-buyer is disabled. <a href="<?= $urlBase ?>/settings/">Enable it</a>
+                <?php if ($untilLabel): ?>
+                    Auto-buyer is disabled until <strong><?= htmlspecialchars($untilLabel) ?></strong>. <a href="<?= $urlBase ?>/settings/">Settings</a>
+                <?php else: ?>
+                    Auto-buyer is disabled. <a href="<?= $urlBase ?>/settings/">Enable it</a>
+                <?php endif; ?>
             </div>
         <?php endif; ?>
         <?php if ($permit): ?>

@@ -485,9 +485,18 @@ $permits = array_reverse($permits);
         <?php endif; ?>
 
         <?php if (!$autobuyerEnabled): ?>
+            <?php
+            $disabledUntil = $settings['autobuyer']['disabled_until'] ?? null;
+            $untilLabel = ($disabledUntil && preg_match('/^\d{4}-\d{2}-\d{2}$/', $disabledUntil))
+                ? date('M j, Y', strtotime($disabledUntil)) : null;
+            ?>
             <div class="autobuyer-warning">
-                Auto-buyer is disabled. Permits will NOT be purchased automatically.
-                <a href="<?= $urlBase ?>/settings/">Enable it</a>
+                <?php if ($untilLabel): ?>
+                    Auto-buyer is disabled until <strong><?= htmlspecialchars($untilLabel) ?></strong>. <a href="<?= $urlBase ?>/settings/">Settings</a>
+                <?php else: ?>
+                    Auto-buyer is disabled. Permits will NOT be purchased automatically.
+                    <a href="<?= $urlBase ?>/settings/">Enable it</a>
+                <?php endif; ?>
             </div>
         <?php endif; ?>
 

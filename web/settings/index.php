@@ -254,6 +254,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $settings['autobuyer']['enabled'] = !$currentEnabled;
             $newState = $settings['autobuyer']['enabled'];
 
+            // Track an optional re-enable date when turning OFF; clear it when turning ON
+            if (!$newState && !empty($_POST['disabled_until']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_POST['disabled_until'])) {
+                $settings['autobuyer']['disabled_until'] = $_POST['disabled_until'];
+            } else {
+                $settings['autobuyer']['disabled_until'] = null;
+            }
+
             if (file_put_contents($settingsFile, json_encode($settings, JSON_PRETTY_PRINT))) {
                 $message = 'Auto-buyer ' . ($newState ? 'enabled' : 'disabled') . '.';
                 $messageType = 'success';
@@ -268,8 +275,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     <body style='font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px;'>
                         <div style='max-width: 400px; margin: 0 auto; background: white; border-radius: 8px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
                             <h2 style='margin: 0 0 16px; color: #333;'>Auto-buyer Setting Changed</h2>
-                            <p style='margin: 0 0 16px; color: #666;'>The parking permit auto-buyer has been <strong style='color: $stateColor;'>$stateText</strong>.</p>
-                            <p style='margin: 0; font-size: 12px; color: #999;'>Changed at: " . date('M j, Y g:i A') . "<br>From: " . ($_SERVER['REMOTE_ADDR'] ?? 'Unknown') . "</p>
+                            <p style='margin: 0 0 16px; color: #666;'>The parking permit auto-buyer has been <strong style='color: $stateColor;'>$stateText</strong>.</p>" .
+                            (($settings['autobuyer']['disabled_until'] ?? null) && !$newState
+                                ? "<p style='margin: 0 0 16px; color: #666;'>It will automatically re-enable on <strong>" . date('M j, Y', strtotime($settings['autobuyer']['disabled_until'])) . "</strong>.</p>"
+                                : "") .
+                            "<p style='margin: 0; font-size: 12px; color: #999;'>Changed at: " . date('M j, Y g:i A') . "<br>From: " . ($_SERVER['REMOTE_ADDR'] ?? 'Unknown') . "</p>
                         </div>
                     </body>
                     </html>";
@@ -552,6 +562,24 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             position: relative;
             margin-bottom: 16px;
         }
+        .modal-date-wrapper {
+            margin-bottom: 16px;
+        }
+        .modal-date-label {
+            display: block;
+            font-size: 13px;
+            color: #8892a6;
+            margin-bottom: 6px;
+        }
+        .modal-date-wrapper .modal-input {
+            padding-right: 16px;
+            color-scheme: dark;
+        }
+        .modal-date-hint {
+            font-size: 11px;
+            color: #5a6378;
+            margin-top: 6px;
+        }
         .modal-input {
             width: 100%;
             padding: 12px 16px;
@@ -710,8 +738,13 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
         <div class="card">
             <div class="header">
                 <span class="title">Settings</span>
+                <?php
+                $disabledUntilHead = $settings['autobuyer']['disabled_until'] ?? null;
+                $untilHeadLabel = ($disabledUntilHead && preg_match('/^\d{4}-\d{2}-\d{2}$/', $disabledUntilHead))
+                    ? date('M j', strtotime($disabledUntilHead)) : null;
+                ?>
                 <span class="status-badge <?= $autobuyerEnabled ? 'on' : 'off' ?>">
-                    Auto-buyer: <?= $autobuyerEnabled ? 'ON' : 'OFF' ?>
+                    Auto-buyer: <?= $autobuyerEnabled ? 'ON' : 'OFF' ?><?= (!$autobuyerEnabled && $untilHeadLabel) ? ' until ' . htmlspecialchars($untilHeadLabel) : '' ?>
                 </span>
             </div>
 
@@ -726,8 +759,19 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             </div>
 
             <?php if (!$autobuyerEnabled): ?>
+                <?php
+                $disabledUntil = $settings['autobuyer']['disabled_until'] ?? null;
+                $untilLabel = null;
+                if ($disabledUntil && preg_match('/^\d{4}-\d{2}-\d{2}$/', $disabledUntil)) {
+                    $untilLabel = date('M j, Y', strtotime($disabledUntil));
+                }
+                ?>
                 <div class="warning">
-                    Auto-buyer is disabled. Permits will NOT be purchased automatically until re-enabled.
+                    <?php if ($untilLabel): ?>
+                        Auto-buyer is disabled. It will automatically re-enable on <strong><?= htmlspecialchars($untilLabel) ?></strong>.
+                    <?php else: ?>
+                        Auto-buyer is disabled. Permits will NOT be purchased automatically until re-enabled.
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
         </div>
@@ -815,6 +859,13 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             <div class="modal-desc">Enter password to confirm this change.</div>
             <form method="POST" id="toggleForm">
                 <input type="hidden" name="action" value="toggle_autobuyer">
+                <?php if ($autobuyerEnabled): ?>
+                <div class="modal-date-wrapper">
+                    <label for="disabledUntilInput" class="modal-date-label">Auto-re-enable on (optional)</label>
+                    <input type="date" name="disabled_until" id="disabledUntilInput" class="modal-input" min="<?= date('Y-m-d', strtotime('+1 day')) ?>">
+                    <div class="modal-date-hint">Leave blank to disable indefinitely.</div>
+                </div>
+                <?php endif; ?>
                 <div class="password-wrapper">
                     <input type="password" name="password" id="passwordInput" class="modal-input" placeholder="Password" autocomplete="current-password" required>
                     <button type="button" class="toggle-password" onclick="togglePasswordVisibility()">
