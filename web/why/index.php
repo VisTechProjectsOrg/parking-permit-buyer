@@ -13,6 +13,23 @@ foreach ($permits as $permit) {
     }
 }
 $weeksOfMyLife = count($permits);
+
+// Latest weekly permit price (walk history backwards for the most recent ~7-day permit)
+function _isWeeklyPermit($p) {
+    $from = preg_replace('/:\s*\d{1,2}:\d{2}$/', '', $p['validFrom'] ?? '');
+    $to = preg_replace('/:\s*\d{1,2}:\d{2}$/', '', $p['validTo'] ?? '');
+    $f = DateTime::createFromFormat('M j, Y', trim($from));
+    $t = DateTime::createFromFormat('M j, Y', trim($to));
+    return $f && $t && $f->diff($t)->days >= 6;
+}
+$latestWeeklyPrice = null;
+for ($i = count($permits) - 1; $i >= 0; $i--) {
+    if (_isWeeklyPermit($permits[$i]) && !empty($permits[$i]['amountPaid'])) {
+        $latestWeeklyPrice = floatval(str_replace(['$', ','], '', $permits[$i]['amountPaid']));
+        break;
+    }
+}
+$priceLabel = $latestWeeklyPrice ? '$' . number_format($latestWeeklyPrice, 2) : '~$50';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -134,7 +151,7 @@ $weeksOfMyLife = count($permits);
 
         <div class="card">
             <p class="lede">The City of Toronto won't let me buy a yearly parking permit.</p>
-            <p>They want me to come back <strong>every week</strong>, fill out the same form, type the same plate, type the same address, pay them ~$50, and get a PDF I'm supposed to print and stick in my windshield. Forever.</p>
+            <p>They want me to come back <strong>every week</strong>, fill out the same form, type the same plate, type the same address, pay them <?= htmlspecialchars($priceLabel) ?>, and get a PDF I'm supposed to print and stick in my windshield. Forever.</p>
             <p>Their website looks like it was built in 2005 by an intern who didn't finish the gig.</p>
         </div>
 
@@ -165,5 +182,7 @@ $weeksOfMyLife = count($permits);
         <a href="https://github.com/VisTechProjectsOrg/parking-permit-android" target="_blank">Android App</a>
     </div>
     <?php include __DIR__ . '/../_partials/bottom_nav.php'; ?>
+    <?php include __DIR__ . '/../_partials/version_banner.php'; ?>
+    <?php include __DIR__ . '/../_partials/console_easter_egg.php'; ?>
 </body>
 </html>

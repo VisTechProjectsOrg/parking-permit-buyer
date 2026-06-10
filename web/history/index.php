@@ -629,31 +629,14 @@ $permits = array_reverse($permits);
         filterStatus.addEventListener('change', applyFilters);
         filterDate.addEventListener('change', applyFilters);
 
-        // A special message for those who look
-        console.log(`%c
-    ╭─────────────────────────────────────────╮
-    │                                         │
-    │      🖕 CITY OF TORONTO PARKING 🖕      │
-    │                                         │
-    │   "The only thing more expensive than   │
-    │    Toronto parking is Toronto rent"     │
-    │                                         │
-    │   So I automated the whole thing...     │
-    │                                         │
-    ╰─────────────────────────────────────────╯
-
-🖕  https://media.giphy.com/media/xndHaRIcvge5y/giphy.gif
-
-If you're already here, check out my other automated bullshit:
-🖕 Auto-buyer: https://github.com/VisTechProjects/parking-permit-buyer
-🖕 E-ink display: https://github.com/VisTechProjects/parking-permit-display
-        `, 'color: #4caf50; font-family: monospace;');
     </script>
+    <?php include __DIR__ . '/../_partials/console_easter_egg.php'; ?>
     <div class="project-links">
         <a href="https://github.com/VisTechProjectsOrg/parking-permit-buyer" target="_blank">Auto-buyer</a>
         <a href="https://github.com/VisTechProjectsOrg/parking-permit-display" target="_blank">E-ink Display</a>
         <a href="https://github.com/VisTechProjectsOrg/parking-permit-android" target="_blank">Android App</a>
     </div>
     <?php include __DIR__ . '/../_partials/bottom_nav.php'; ?>
+    <?php include __DIR__ . '/../_partials/version_banner.php'; ?>
 </body>
 </html>

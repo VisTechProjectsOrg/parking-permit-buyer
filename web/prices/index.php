@@ -279,5 +279,7 @@ $percentChange = $firstPrice > 0 ? (($currentPrice - $firstPrice) / $firstPrice)
         <a href="https://github.com/VisTechProjectsOrg/parking-permit-android" target="_blank">Android App</a>
     </div>
     <?php include __DIR__ . '/../_partials/bottom_nav.php'; ?>
+    <?php include __DIR__ . '/../_partials/version_banner.php'; ?>
+    <?php include __DIR__ . '/../_partials/console_easter_egg.php'; ?>
 </body>
 </html>

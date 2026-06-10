@@ -19,3 +19,4 @@ jobs:
             cd /home/admin/Toronto-Parking-Pass-Buyer
             git fetch origin
             git reset --hard origin/main
+            echo "$(git rev-parse --short HEAD) (main)" > version.txt
