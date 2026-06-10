@@ -738,13 +738,8 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
         <div class="card">
             <div class="header">
                 <span class="title">Settings</span>
-                <?php
-                $disabledUntilHead = $settings['autobuyer']['disabled_until'] ?? null;
-                $untilHeadLabel = ($disabledUntilHead && preg_match('/^\d{4}-\d{2}-\d{2}$/', $disabledUntilHead))
-                    ? date('M j', strtotime($disabledUntilHead)) : null;
-                ?>
                 <span class="status-badge <?= $autobuyerEnabled ? 'on' : 'off' ?>">
-                    Auto-buyer: <?= $autobuyerEnabled ? 'ON' : 'OFF' ?><?= (!$autobuyerEnabled && $untilHeadLabel) ? ' until ' . htmlspecialchars($untilHeadLabel) : '' ?>
+                    Auto-buyer: <?= $autobuyerEnabled ? 'ON' : 'OFF' ?>
                 </span>
             </div>
 
