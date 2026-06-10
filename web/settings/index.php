@@ -959,7 +959,6 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             }, 3000);
         }
 
-        console.log('%c Settings Page ', 'background: #2a3142; color: #64b5f6; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
     </script>
     <div class="project-links">
         <a href="https://github.com/VisTechProjectsOrg/parking-permit-buyer" target="_blank">Auto-buyer</a>
