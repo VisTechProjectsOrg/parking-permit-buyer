@@ -899,18 +899,19 @@ def create_permit_json(permit_data, output_path, vehicle_name=None):
     print(bcolors.OKGREEN + f"\nCreated permit JSON: {output_path}" + bcolors.ENDC)
     return json_data
 
-def archive_pdf(pdf_path):
-    """Move PDF to old_permits archive folder with timestamp."""
+def archive_pdf(pdf_path, permit_number=None):
+    """Move PDF to old_permits archive folder with timestamp and permit number."""
     import shutil
 
     # Create archive folder if it doesn't exist
     archive_dir = Path('old_permits')
     archive_dir.mkdir(exist_ok=True)
 
-    # Generate timestamped filename
+    # Generate timestamped filename, optionally with permit number for easy identification
     pdf_path = Path(pdf_path)
     timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    archived_name = f"permit_{timestamp}{pdf_path.suffix}"
+    suffix = f"_{permit_number}" if permit_number else ""
+    archived_name = f"permit_{timestamp}{suffix}{pdf_path.suffix}"
     archived_path = archive_dir / archived_name
 
     # Move the file
@@ -1677,11 +1678,10 @@ Examples:
             if not args.no_github:
                 github_success = commit_and_push_to_github(json_path, f"Update permit to {permit_data['permit_number']}")
 
-            # Only archive the PDF after successful GitHub push (or if GitHub push skipped)
-            if github_success or args.no_github:
-                archive_pdf(pdf_path)
-            else:
-                print(bcolors.FAIL + "GitHub push failed - PDF not archived (you can try again)" + bcolors.ENDC)
+            # Always archive the PDF so it isn't stranded; GitHub push is just a sync side-effect
+            if not github_success and not args.no_github:
+                print(bcolors.WARNING + "GitHub push failed - archiving PDF anyway (display sync may be stale)" + bcolors.ENDC)
+            archive_pdf(pdf_path, permit_data.get('permit_number'))
         else:
             print(bcolors.FAIL + "\nMissing permit data - JSON not created" + bcolors.ENDC)
 
@@ -1749,11 +1749,9 @@ Examples:
                     print(bcolors.OKCYAN + "\nPushing to GitHub..." + bcolors.ENDC)
                     github_success = commit_and_push_to_github(json_path, f"Update permit to {permit_data['permit_number']}")
 
-                # Only archive the PDF after successful GitHub push (or if GitHub push skipped)
-                if github_success or args.no_github:
-                    archive_pdf(pdf_path)
-                else:
-                    print(bcolors.FAIL + "GitHub push failed - PDF not archived (you can try again)" + bcolors.ENDC)
+                if not github_success and not args.no_github:
+                    print(bcolors.WARNING + "GitHub push failed - archiving PDF anyway (display sync may be stale)" + bcolors.ENDC)
+                archive_pdf(pdf_path, permit_data.get('permit_number'))
 
                 print(bcolors.OKGREEN + bcolors.UNDERLINE + "\n\nDone (refetch)" + bcolors.ENDC)
             else:
@@ -1816,8 +1814,9 @@ Examples:
                                 print(bcolors.OKCYAN + "\nPushing to GitHub..." + bcolors.ENDC)
                                 github_success = commit_and_push_to_github(json_path, f"Update permit to {permit_data['permit_number']}")
 
-                            if github_success or args.no_github:
-                                archive_pdf(pdf_path)
+                            if not github_success and not args.no_github:
+                                print(bcolors.WARNING + "GitHub push failed - archiving PDF anyway (display sync may be stale)" + bcolors.ENDC)
+                            archive_pdf(pdf_path, permit_data.get('permit_number'))
 
                             print(bcolors.OKGREEN + bcolors.UNDERLINE + "\n\nDone (refetch)" + bcolors.ENDC)
                         else:
@@ -1974,11 +1973,9 @@ Examples:
                 print(bcolors.OKCYAN + "\nPushing to GitHub..." + bcolors.ENDC)
                 github_success = commit_and_push_to_github(json_path, f"Update permit to {permit_data['permit_number']}")
 
-            # Only archive the PDF after successful GitHub push (or if GitHub push skipped)
-            if github_success or args.no_github:
-                archive_pdf(pdf_path)
-            else:
-                print(bcolors.FAIL + "GitHub push failed - PDF not archived (you can try again)" + bcolors.ENDC)
+            if not github_success and not args.no_github:
+                print(bcolors.WARNING + "GitHub push failed - archiving PDF anyway (display sync may be stale)" + bcolors.ENDC)
+            archive_pdf(pdf_path, permit_data.get('permit_number'))
 
             print(bcolors.OKGREEN + bcolors.UNDERLINE + "\n\nDone" + bcolors.ENDC)
 
