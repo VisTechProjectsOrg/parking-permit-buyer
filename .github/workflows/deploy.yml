@@ -20,3 +20,11 @@ jobs:
             git fetch origin
             git reset --hard origin/main
             echo "$(git rev-parse --short HEAD) (main)" > version.txt
+            # Self-healing symlink sync: any file/dir under web/ becomes reachable
+            # at the public_html webroot. .htaccess is left alone (real file there).
+            WEBROOT=/home/admin/domains/fucktorontoparking.ca/public_html
+            for item in /home/admin/Toronto-Parking-Pass-Buyer/web/*; do
+              name=$(basename "$item")
+              [ "$name" = ".htaccess" ] && continue
+              ln -sfn "$item" "$WEBROOT/$name"
+            done

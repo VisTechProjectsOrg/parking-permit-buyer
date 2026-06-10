@@ -145,6 +145,24 @@ def save_settings():
 
 settings = load_settings()
 
+def check_autobuyer_reenable():
+    """If autobuyer is disabled with a re-enable date that's passed, flip it back on."""
+    ab = settings.get('autobuyer') or {}
+    disabled_until = ab.get('disabled_until')
+    if ab.get('enabled', True) or not disabled_until:
+        return
+    try:
+        until_date = datetime.fromisoformat(disabled_until).date()
+    except (ValueError, TypeError):
+        return
+    if datetime.now().date() >= until_date:
+        settings['autobuyer']['enabled'] = True
+        settings['autobuyer']['disabled_until'] = None
+        save_settings()
+        print(bcolors.OKCYAN + f"Auto-re-enabled autobuyer (disabled_until {disabled_until} has passed)" + bcolors.ENDC)
+
+check_autobuyer_reenable()
+
 def is_notification_enabled(notification_type):
     """Check if a notification type is enabled in settings."""
     return settings.get('notifications', {}).get(notification_type, True)

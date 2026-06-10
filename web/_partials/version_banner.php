@@ -26,7 +26,7 @@ $_branch = $_ver['branch'];
 <style>
     .version-update-bar {
         position: fixed;
-        bottom: 64px;
+        top: 16px;
         left: 16px;
         right: 16px;
         background: #1e40af;

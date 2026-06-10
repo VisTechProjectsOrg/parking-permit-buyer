@@ -485,9 +485,18 @@ $permits = array_reverse($permits);
         <?php endif; ?>
 
         <?php if (!$autobuyerEnabled): ?>
+            <?php
+            $disabledUntil = $settings['autobuyer']['disabled_until'] ?? null;
+            $untilLabel = ($disabledUntil && preg_match('/^\d{4}-\d{2}-\d{2}$/', $disabledUntil))
+                ? date('M j, Y', strtotime($disabledUntil)) : null;
+            ?>
             <div class="autobuyer-warning">
-                Auto-buyer is disabled. Permits will NOT be purchased automatically.
-                <a href="<?= $urlBase ?>/settings/">Enable it</a>
+                <?php if ($untilLabel): ?>
+                    Auto-buyer is disabled until <strong><?= htmlspecialchars($untilLabel) ?></strong>. <a href="<?= $urlBase ?>/settings/">Settings</a>
+                <?php else: ?>
+                    Auto-buyer is disabled. Permits will NOT be purchased automatically.
+                    <a href="<?= $urlBase ?>/settings/">Enable it</a>
+                <?php endif; ?>
             </div>
         <?php endif; ?>
 
@@ -630,7 +639,6 @@ $permits = array_reverse($permits);
         filterDate.addEventListener('change', applyFilters);
 
     </script>
-    <?php include __DIR__ . '/../_partials/console_easter_egg.php'; ?>
     <div class="project-links">
         <a href="https://github.com/VisTechProjectsOrg/parking-permit-buyer" target="_blank">Auto-buyer</a>
         <a href="https://github.com/VisTechProjectsOrg/parking-permit-display" target="_blank">E-ink Display</a>
@@ -638,5 +646,6 @@ $permits = array_reverse($permits);
     </div>
     <?php include __DIR__ . '/../_partials/bottom_nav.php'; ?>
     <?php include __DIR__ . '/../_partials/version_banner.php'; ?>
+    <?php include __DIR__ . '/../_partials/console_easter_egg.php'; ?>
 </body>
 </html>
