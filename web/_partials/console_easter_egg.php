@@ -14,13 +14,12 @@
     `, 'color: #4caf50; font-family: monospace;');
 
     // Linus's middle finger rendered in the console (Chrome/Edge/Firefox).
-    // The space-with-%c trick: padding creates the canvas, background-image
-    // is the GIF, font-size:0 hides the actual space character.
+    // Self-hosted because Chrome blocks cross-origin images in %c background-image.
     console.log(
         '%c ',
-        'font-size: 0; line-height: 180px;' +
-        'padding: 90px 110px;' +
-        'background: url("https://media.giphy.com/media/xndHaRIcvge5y/giphy.gif") center / contain no-repeat;'
+        'font-size: 0; line-height: 200px;' +
+        'padding: 100px 135px;' +
+        'background: url("<?= $urlBase ?>/static/linus_middle_finger.gif") center / contain no-repeat;'
     );
 
     console.log(`%c
