@@ -156,7 +156,7 @@ $priceLabel = $latestWeeklyPrice ? '$' . number_format($latestWeeklyPrice, 2) : 
         <div class="card">
             <p class="lede">The City of Toronto won't let me buy a yearly parking permit.</p>
             <p>They want me to come back <strong>every week</strong>, fill out the same form, type the same plate, type the same address, pay them <span class="price-tag"><?= htmlspecialchars($priceLabel) ?></span>, and get a PDF I'm supposed to print and stick in my windshield. Forever.</p>
-            <p>Their website looks like it was built in 2005 by an intern who didn't finish the gig.</p>
+            <p>Their website looks like it was built in 2005.</p>
         </div>
 
         <div class="card">
