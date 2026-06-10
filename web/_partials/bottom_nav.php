@@ -2,7 +2,7 @@
 // Sticky-bottom nav, included near </body> on each page.
 // Detects active page from script directory; expects $urlBase from config.php.
 $_navDir = basename(dirname($_SERVER['SCRIPT_NAME']));
-$_navPage = in_array($_navDir, ['history', 'prices', 'settings'], true) ? $_navDir : 'current';
+$_navPage = in_array($_navDir, ['history', 'prices', 'settings', 'why'], true) ? $_navDir : 'current';
 ?>
 <style>
     body { padding-bottom: 64px; }
@@ -39,5 +39,6 @@ $_navPage = in_array($_navDir, ['history', 'prices', 'settings'], true) ? $_navD
     <a href="<?= $urlBase ?>/" class="<?= $_navPage === 'current' ? 'active' : '' ?>">Current</a>
     <a href="<?= $urlBase ?>/history/" class="<?= $_navPage === 'history' ? 'active' : '' ?>">History</a>
     <a href="<?= $urlBase ?>/prices/" class="<?= $_navPage === 'prices' ? 'active' : '' ?>">Prices</a>
+    <a href="<?= $urlBase ?>/why/" class="<?= $_navPage === 'why' ? 'active' : '' ?>">Why</a>
     <a href="<?= $urlBase ?>/settings/" class="<?= $_navPage === 'settings' ? 'active' : '' ?>">Settings</a>
 </nav>
