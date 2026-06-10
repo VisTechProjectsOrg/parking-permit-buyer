@@ -892,7 +892,7 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
                 </div>
             </div>
 
-            <button type="button" class="save-btn" onclick="showNotificationModal()">Save Notification Settings</button>
+            <button type="button" id="notificationSaveBtn" class="save-btn" onclick="showNotificationModal()" style="display: none;">Save Notification Settings</button>
         </div>
 
     </div>
@@ -1032,6 +1032,20 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             sel.addEventListener('change', () => {
                 btn.style.display = (sel.value !== initial) ? '' : 'none';
             });
+        })();
+
+        // Same pattern for the Email Notifications save button: only show on actual change
+        (function () {
+            const btn = document.getElementById('notificationSaveBtn');
+            if (!btn) return;
+            const ids = ['notify_purchase_success', 'notify_purchase_failed', 'notify_expiry_reminder', 'notify_security_alerts'];
+            const boxes = ids.map(id => document.getElementById(id)).filter(Boolean);
+            const initial = boxes.map(b => b.checked);
+            const check = () => {
+                const dirty = boxes.some((b, i) => b.checked !== initial[i]);
+                btn.style.display = dirty ? '' : 'none';
+            };
+            boxes.forEach(b => b.addEventListener('change', check));
         })();
 
         // Default vehicle modal functions
