@@ -481,7 +481,12 @@ $permits = array_reverse($permits);
             Showing <span id="visibleCount"><?= $totalPermits ?></span> of <?= $totalPermits ?> permits
         </div>
         <?php if ($totalSpent > 0): ?>
-            <div class="total-spent-line">Money wasted on Toronto parking: <span style="color: #f44336;">$<?= number_format($totalSpent, 2) ?></span></div>
+            <div class="total-spent-line">
+                Money wasted on Toronto parking: <span id="filteredSpent" style="color: #f44336;">$<?= number_format($totalSpent, 2) ?></span>
+            </div>
+            <div class="total-spent-line" id="allTimeLine" style="display:none; font-size:11px; opacity:0.7;">
+                all time: <span style="color: #f44336;">$<?= number_format($totalSpent, 2) ?></span>
+            </div>
         <?php endif; ?>
 
         <?php if (!$autobuyerEnabled): ?>
@@ -502,7 +507,7 @@ $permits = array_reverse($permits);
 
         <div id="permitsList">
             <?php if ($scheduledPermit): ?>
-                <div class="permit-card scheduled" data-plate="<?= htmlspecialchars($scheduledPermit['plateNumber']) ?>" data-status="scheduled" data-date="<?= date('Y-m-d', strtotime('+7 days')) ?>">
+                <div class="permit-card scheduled" data-plate="<?= htmlspecialchars($scheduledPermit['plateNumber']) ?>" data-status="scheduled" data-date="<?= date('Y-m-d', strtotime('+7 days')) ?>" data-amount="0">
                     <div class="permit-info">
                         <div class="permit-header">
                             <span class="permit-number"><?= htmlspecialchars($scheduledPermit['permitNumber']) ?></span>
@@ -531,11 +536,13 @@ $permits = array_reverse($permits);
                     $validFrom = parseDate($permit['validFrom'] ?? '');
                     $dateAttr = $validFrom ? $validFrom->format('Y-m-d') : '';
                     ?>
+                    <?php $cardAmount = floatval(str_replace(['$', ','], '', $permit['amountPaid'] ?? '0')); ?>
                     <a href="<?= $urlBase ?>/?permit=<?= htmlspecialchars($permit['permitNumber'] ?? '') ?>"
                        class="permit-card"
                        data-plate="<?= htmlspecialchars($permit['plateNumber'] ?? '') ?>"
                        data-status="<?= $status['class'] ?>"
-                       data-date="<?= $dateAttr ?>">
+                       data-date="<?= $dateAttr ?>"
+                       data-amount="<?= $cardAmount ?>">
                         <div class="permit-info">
                             <div class="permit-header">
                                 <span class="permit-number"><?= htmlspecialchars($permit['permitNumber'] ?? 'N/A') ?></span>
@@ -573,6 +580,8 @@ $permits = array_reverse($permits);
         const clearBtn = document.getElementById('clearBtn');
         const noResults = document.getElementById('noResults');
         const visibleCountEl = document.getElementById('visibleCount');
+        const filteredSpentEl = document.getElementById('filteredSpent');
+        const allTimeLineEl = document.getElementById('allTimeLine');
         const totalPermits = <?= $totalPermits ?>;
 
         function updateClearButton() {
@@ -587,6 +596,7 @@ $permits = array_reverse($permits);
 
             const cards = document.querySelectorAll('.permit-card');
             let visibleCount = 0;
+            let visibleSpent = 0;
 
             const cutoffDate = days ? new Date(Date.now() - days * 24 * 60 * 60 * 1000) : null;
 
@@ -619,13 +629,25 @@ $permits = array_reverse($permits);
                 }
 
                 card.classList.toggle('hidden', !show);
-                if (show) visibleCount++;
+                if (show) {
+                    visibleCount++;
+                    visibleSpent += parseFloat(card.dataset.amount || 0);
+                }
             });
 
             visibleCountEl.textContent = visibleCount;
             noResults.style.display = visibleCount === 0 ? 'block' : 'none';
+            if (filteredSpentEl) {
+                const hasFilters = filterVehicle.value || filterStatus.value || filterDate.value;
+                filteredSpentEl.textContent = '$' + visibleSpent.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                if (allTimeLineEl) {
+                    allTimeLineEl.style.display = hasFilters ? 'block' : 'none';
+                }
+            }
             updateClearButton();
         }
+
+        applyFilters();
 
         function clearFilters() {
             filterVehicle.value = '';
