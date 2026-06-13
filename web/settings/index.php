@@ -362,6 +362,7 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="icon" type="image/svg+xml" href="<?= $urlBase ?>/static/favicon.svg">
     <title>Parking Settings</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }

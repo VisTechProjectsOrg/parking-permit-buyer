@@ -36,6 +36,7 @@ $priceLabel = $latestWeeklyPrice ? '$' . number_format($latestWeeklyPrice, 2) : 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="<?= $urlBase ?>/static/favicon.svg">
     <title>Why this exists</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }

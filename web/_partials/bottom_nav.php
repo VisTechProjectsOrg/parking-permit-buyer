@@ -5,7 +5,7 @@ $_navDir = basename(dirname($_SERVER['SCRIPT_NAME']));
 $_navPage = in_array($_navDir, ['history', 'prices', 'settings', 'why'], true) ? $_navDir : 'current';
 ?>
 <style>
-    body { padding-bottom: 64px; }
+    body { padding-bottom: 84px; }
     .bottom-nav {
         position: fixed;
         bottom: 0;
@@ -13,19 +13,20 @@ $_navPage = in_array($_navDir, ['history', 'prices', 'settings', 'why'], true) ?
         right: 0;
         background: #1e2433;
         border-top: 1px solid #2a3142;
-        display: flex;
-        justify-content: space-around;
-        padding: 8px 4px env(safe-area-inset-bottom, 8px);
+        display: grid;
+        grid-auto-columns: 1fr;
+        grid-auto-flow: column;
+        gap: 14px;
+        padding: 14px 24px calc(14px + env(safe-area-inset-bottom, 0px));
         z-index: 100;
     }
     .bottom-nav a {
-        flex: 1;
         text-align: center;
         color: #8892a6;
         text-decoration: none;
-        font-size: 12px;
-        padding: 8px 4px;
-        border-radius: 6px;
+        font-size: 13px;
+        padding: 10px 6px;
+        border-radius: 8px;
         transition: color 0.15s, background 0.15s;
     }
     .bottom-nav a:hover { color: #e2e8f0; }
