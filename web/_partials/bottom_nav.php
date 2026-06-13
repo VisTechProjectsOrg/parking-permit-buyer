@@ -13,13 +13,14 @@ $_navPage = in_array($_navDir, ['history', 'prices', 'settings', 'why'], true) ?
         right: 0;
         background: #1e2433;
         border-top: 1px solid #2a3142;
-        display: flex;
-        justify-content: space-around;
-        padding: 8px 4px env(safe-area-inset-bottom, 8px);
+        display: grid;
+        grid-auto-columns: 1fr;
+        grid-auto-flow: column;
+        gap: 6px;
+        padding: 8px 12px env(safe-area-inset-bottom, 8px);
         z-index: 100;
     }
     .bottom-nav a {
-        flex: 1;
         text-align: center;
         color: #8892a6;
         text-decoration: none;

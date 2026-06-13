@@ -167,6 +167,7 @@ $permits = array_reverse($permits);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="<?= $urlBase ?>/static/favicon.svg">
     <title>Permit History</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
