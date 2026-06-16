@@ -20,6 +20,9 @@ $_branch = $_ver['branch'];
         z-index: 200;
         font-family: monospace;
     }
+    /* Push any top-pinned floating UI below the version bar */
+    .logout-floating { top: 36px !important; }
+    .version-update-bar { top: 36px !important; }
 </style>
 <div class="version-bar"><?= htmlspecialchars($_commit) ?> (<?= htmlspecialchars($_branch) ?>)</div>
 <?php endif; ?>
