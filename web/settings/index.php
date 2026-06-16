@@ -349,7 +349,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             // the existing purchase_success / purchase_failed email confirms outcome.
             $plate = trim($_POST['vehicle_plate'] ?? '');
             $dryRun = !empty($_POST['dry_run']);
-            $skipDisplay = !empty($_POST['skip_display']);
             $carsList = file_exists($carsFile) ? (json_decode(file_get_contents($carsFile), true) ?: []) : [];
             $vehicleIndex = null;
             $vehicleName = null;
@@ -364,19 +363,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $_SESSION['flash_message'] = 'Unknown vehicle.';
                 $_SESSION['flash_type'] = 'error';
             } else {
-                $flags = '';
-                if ($dryRun) $flags .= ' --dry-run';
-                if ($skipDisplay) $flags .= ' --no-display';
+                $dryRunFlag = $dryRun ? ' --dry-run' : '';
                 $cmd = sprintf(
                     'cd %s && nohup /usr/bin/python3 parking_pass_buyer.py --headless --vehicle %d --card 0%s >> logs/buy_now.log 2>&1 &',
                     escapeshellarg($basePath),
                     $vehicleIndex,
-                    $flags
+                    $dryRunFlag
                 );
                 @shell_exec($cmd);
-                $verb = $dryRun ? 'Test buy started for ' : 'Buy started for ';
-                $suffix = $skipDisplay ? ' (display will keep showing the default)' : '';
-                $_SESSION['flash_message'] = $verb . $vehicleName . $suffix . '. Email confirms when done.';
+                $_SESSION['flash_message'] = ($dryRun ? 'Test buy started for ' : 'Buy started for ') . $vehicleName . '. Email confirms when done.';
                 $_SESSION['flash_type'] = 'info';
             }
             header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
@@ -817,24 +812,6 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             border-color: #64b5f6;
             color: #64b5f6;
         }
-        .buy-now-skip-display {
-            display: flex;
-            align-items: flex-start;
-            gap: 10px;
-            padding: 12px;
-            background: #1a1f2e;
-            border: 1px solid #3a4255;
-            border-radius: 6px;
-            margin-bottom: 18px;
-            cursor: pointer;
-            font-size: 12px;
-            color: #cbd5e1;
-            line-height: 1.4;
-        }
-        .buy-now-skip-display input {
-            margin-top: 2px;
-            accent-color: #64b5f6;
-        }
         .vehicle-select:focus {
             outline: none;
             border-color: #64b5f6;
@@ -1260,11 +1237,6 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
                 <div class="modal-confirm-msg" id="buyNowModalMsg">
                     Buy a permit for <strong id="buyNowCarName">—</strong>?
                 </div>
-                <!-- Only shown when picked vehicle != default -->
-                <label class="buy-now-skip-display" id="buyNowSkipDisplayWrap" style="display: none;">
-                    <input type="checkbox" name="skip_display" id="buyNowSkipDisplay">
-                    <span>Keep home page &amp; e-ink display showing the default permit</span>
-                </label>
                 <div class="modal-buttons">
                     <button type="button" class="modal-btn cancel" onclick="hideBuyNowModal()">Cancel</button>
                     <button type="submit" class="modal-btn confirm disable" id="buyNowConfirmBtn">Buy Now</button>
@@ -1425,7 +1397,6 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
         });
 
         // Buy Now confirm modal
-        const DEFAULT_VEHICLE_PLATE = <?= json_encode($defaultVehiclePlate) ?>;
         function showBuyNowModal(isDryRun) {
             const sel = document.getElementById('buyNowVehicleSelect');
             if (!sel) return;
@@ -1434,13 +1405,6 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             document.getElementById('hidden_buy_vehicle_plate').value = plate;
             document.getElementById('hidden_buy_dry_run').value = isDryRun ? '1' : '';
             document.getElementById('buyNowCarName').textContent = name + ' (' + plate + ')';
-
-            // Only show the "keep display" checkbox when buying for a non-default vehicle
-            const skipWrap = document.getElementById('buyNowSkipDisplayWrap');
-            const skipBox = document.getElementById('buyNowSkipDisplay');
-            const isNonDefault = DEFAULT_VEHICLE_PLATE && plate.toUpperCase() !== String(DEFAULT_VEHICLE_PLATE).toUpperCase();
-            if (skipWrap) skipWrap.style.display = isNonDefault ? '' : 'none';
-            if (skipBox) skipBox.checked = false;
             const title = document.getElementById('buyNowModalTitle');
             const msg = document.getElementById('buyNowModalMsg');
             const btn = document.getElementById('buyNowConfirmBtn');
