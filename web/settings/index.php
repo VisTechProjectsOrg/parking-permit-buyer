@@ -344,43 +344,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $message = 'Failed to save settings.';
                 $messageType = 'error';
             }
-        } elseif ($_POST['action'] === 'buy_now') {
-            // Fire a one-off permit buy in the background. PHP returns immediately;
-            // the existing purchase_success / purchase_failed email confirms outcome.
-            $plate = trim($_POST['vehicle_plate'] ?? '');
-            $dryRun = !empty($_POST['dry_run']);
-            $skipDisplay = !empty($_POST['skip_display']);
-            $carsList = file_exists($carsFile) ? (json_decode(file_get_contents($carsFile), true) ?: []) : [];
-            $vehicleIndex = null;
-            $vehicleName = null;
-            foreach ($carsList as $i => $car) {
-                if (strcasecmp(($car['plate'] ?? ''), $plate) === 0) {
-                    $vehicleIndex = $i;
-                    $vehicleName = $car['name'] ?? $plate;
-                    break;
-                }
-            }
-            if ($vehicleIndex === null) {
-                $_SESSION['flash_message'] = 'Unknown vehicle.';
-                $_SESSION['flash_type'] = 'error';
-            } else {
-                $flags = '';
-                if ($dryRun) $flags .= ' --dry-run';
-                if ($skipDisplay) $flags .= ' --no-display';
-                $cmd = sprintf(
-                    'cd %s && nohup /usr/bin/python3 parking_pass_buyer.py --headless --vehicle %d --card 0%s >> logs/buy_now.log 2>&1 &',
-                    escapeshellarg($basePath),
-                    $vehicleIndex,
-                    $flags
-                );
-                @shell_exec($cmd);
-                $verb = $dryRun ? 'Test buy started for ' : 'Buy started for ';
-                $suffix = $skipDisplay ? ' (display will keep showing the default)' : '';
-                $_SESSION['flash_message'] = $verb . $vehicleName . $suffix . '. Email confirms when done.';
-                $_SESSION['flash_type'] = 'info';
-            }
-            header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
-            exit;
         }
     }
 }
@@ -789,52 +752,6 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             margin-bottom: 18px;
             line-height: 1.5;
         }
-        .buy-now-note {
-            font-size: 12px;
-            color: #8892a6;
-            margin-bottom: 12px;
-        }
-        .buy-now-btn {
-            width: 100%;
-            padding: 12px;
-            margin-top: 8px;
-            border: none;
-            border-radius: 8px;
-            background: #d32f2f;
-            color: #fff;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.15s;
-        }
-        .buy-now-btn:hover { background: #b71c1c; }
-        .buy-now-btn.dry {
-            background: transparent;
-            border: 1px solid #3a4255;
-            color: #8892a6;
-        }
-        .buy-now-btn.dry:hover {
-            border-color: #64b5f6;
-            color: #64b5f6;
-        }
-        .buy-now-skip-display {
-            display: flex;
-            align-items: flex-start;
-            gap: 10px;
-            padding: 12px;
-            background: #1a1f2e;
-            border: 1px solid #3a4255;
-            border-radius: 6px;
-            margin-bottom: 18px;
-            cursor: pointer;
-            font-size: 12px;
-            color: #cbd5e1;
-            line-height: 1.4;
-        }
-        .buy-now-skip-display input {
-            margin-top: 2px;
-            accent-color: #64b5f6;
-        }
         .vehicle-select:focus {
             outline: none;
             border-color: #64b5f6;
@@ -1104,22 +1021,6 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             </select>
             <button type="button" id="vehicleSaveBtn" class="save-btn" onclick="showVehicleModal()" style="display: none;">Save Default Vehicle</button>
         </div>
-
-        <div class="card">
-            <div class="header">
-                <span class="title">Buy a permit now</span>
-            </div>
-            <div class="buy-now-note">One-off purchase. Doesn't change the Default Vehicle above.</div>
-            <select id="buyNowVehicleSelect" class="vehicle-select">
-                <?php foreach ($cars as $car): ?>
-                    <option value="<?= htmlspecialchars($car['plate']) ?>" data-name="<?= htmlspecialchars($car['name']) ?>">
-                        <?= htmlspecialchars($car['name']) ?> (<?= htmlspecialchars($car['plate']) ?>)
-                    </option>
-                <?php endforeach; ?>
-            </select>
-            <button type="button" class="buy-now-btn" onclick="showBuyNowModal(false)">Buy permit now</button>
-            <button type="button" class="buy-now-btn dry" onclick="showBuyNowModal(true)">Test (dry run — no charge)</button>
-        </div>
         <?php endif; ?>
 
         <div class="card">
@@ -1249,30 +1150,6 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
         </div>
     </div>
 
-    <!-- Buy Now Confirm Modal (authed only) -->
-    <div class="modal-overlay" id="buyNowModalOverlay">
-        <div class="modal">
-            <div class="modal-title" id="buyNowModalTitle">Buy permit now</div>
-            <form method="POST" id="buyNowForm">
-                <input type="hidden" name="action" value="buy_now">
-                <input type="hidden" name="vehicle_plate" id="hidden_buy_vehicle_plate">
-                <input type="hidden" name="dry_run" id="hidden_buy_dry_run">
-                <div class="modal-confirm-msg" id="buyNowModalMsg">
-                    Buy a permit for <strong id="buyNowCarName">—</strong>?
-                </div>
-                <!-- Only shown when picked vehicle != default -->
-                <label class="buy-now-skip-display" id="buyNowSkipDisplayWrap" style="display: none;">
-                    <input type="checkbox" name="skip_display" id="buyNowSkipDisplay">
-                    <span>Keep home page &amp; e-ink display showing the default permit</span>
-                </label>
-                <div class="modal-buttons">
-                    <button type="button" class="modal-btn cancel" onclick="hideBuyNowModal()">Cancel</button>
-                    <button type="submit" class="modal-btn confirm disable" id="buyNowConfirmBtn">Buy Now</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <!-- Default Vehicle Confirm Modal (authed only) -->
     <div class="modal-overlay" id="vehicleModalOverlay">
         <div class="modal">
@@ -1381,7 +1258,6 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
                 hideNotificationModal();
                 hideVehicleModal();
                 hideLoginModal();
-                hideBuyNowModal();
             }
         });
 
@@ -1423,50 +1299,6 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
         document.getElementById('vehicleModalOverlay').addEventListener('click', function(e) {
             if (e.target === this) hideVehicleModal();
         });
-
-        // Buy Now confirm modal
-        const DEFAULT_VEHICLE_PLATE = <?= json_encode($defaultVehiclePlate) ?>;
-        function showBuyNowModal(isDryRun) {
-            const sel = document.getElementById('buyNowVehicleSelect');
-            if (!sel) return;
-            const plate = sel.value;
-            const name = sel.options[sel.selectedIndex].dataset.name || plate;
-            document.getElementById('hidden_buy_vehicle_plate').value = plate;
-            document.getElementById('hidden_buy_dry_run').value = isDryRun ? '1' : '';
-
-            // Only show the "keep display" checkbox when buying for a non-default vehicle
-            const skipWrap = document.getElementById('buyNowSkipDisplayWrap');
-            const skipBox = document.getElementById('buyNowSkipDisplay');
-            const isNonDefault = DEFAULT_VEHICLE_PLATE && plate.toUpperCase() !== String(DEFAULT_VEHICLE_PLATE).toUpperCase();
-            if (skipWrap) skipWrap.style.display = isNonDefault ? '' : 'none';
-            if (skipBox) skipBox.checked = false;
-            const title = document.getElementById('buyNowModalTitle');
-            const msg = document.getElementById('buyNowModalMsg');
-            const btn = document.getElementById('buyNowConfirmBtn');
-            if (isDryRun) {
-                title.textContent = 'Test buy (dry run)';
-                msg.innerHTML = 'Run the buy flow for <strong>' + name + ' (' + plate + ')</strong> in dry-run mode? Fills the form but stops before payment. No charge.';
-                btn.textContent = 'Run Test';
-                btn.classList.remove('disable');
-                btn.classList.add('save');
-            } else {
-                title.textContent = 'Buy permit now';
-                msg.innerHTML = '<strong>This is a real $50.78 charge.</strong><br>Buy a permit for <strong>' + name + ' (' + plate + ')</strong>? You\'ll get an email when the purchase completes.';
-                btn.textContent = 'Buy Now ($50.78)';
-                btn.classList.remove('save');
-                btn.classList.add('disable');
-            }
-            document.getElementById('buyNowModalOverlay').classList.add('active');
-        }
-        function hideBuyNowModal() {
-            document.getElementById('buyNowModalOverlay').classList.remove('active');
-        }
-        const _buyNowOverlay = document.getElementById('buyNowModalOverlay');
-        if (_buyNowOverlay) {
-            _buyNowOverlay.addEventListener('click', function(e) {
-                if (e.target === this) hideBuyNowModal();
-            });
-        }
 
         // Notification confirm modal — copies checkbox values into hidden inputs, then shows
         function showNotificationModal() {
