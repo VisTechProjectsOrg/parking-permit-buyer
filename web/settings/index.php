@@ -657,21 +657,31 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
         /* Floating Logout button (top-right) shown when logged in */
         .logout-floating {
             position: fixed;
-            top: 16px;
-            right: 16px;
+            top: 12px;
+            right: 12px;
             z-index: 50;
             margin: 0;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            display: inline-block;
+            line-height: 1;
         }
         .logout-floating button {
-            background: #1e2433;
-            border: 1px solid #2a3142;
-            color: #8892a6;
-            padding: 6px 14px;
-            border-radius: 6px;
-            font-size: 12px;
+            background: #2a3142;
+            border: 1px solid #3a4255;
+            color: #cbd5e1;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
             cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            line-height: 1.2;
+            font-family: inherit;
         }
         .logout-floating button:hover {
+            background: #343b4f;
             border-color: #f44336;
             color: #f44336;
         }
