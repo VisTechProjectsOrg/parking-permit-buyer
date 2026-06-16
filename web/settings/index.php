@@ -234,7 +234,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $_SESSION['settings_auth'] = true;
             $_SESSION['settings_auth_time'] = time();
             clearFailedAttempts($rateLimitFile, $clientIp);
-            $_SESSION['flash_message'] = 'Logged in. Edit mode enabled for 30 minutes.';
+            $_SESSION['flash_message'] = 'Logged in.';
             $_SESSION['flash_type'] = 'success';
             header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
             exit;
@@ -654,44 +654,48 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             margin-bottom: 12px;
             color-scheme: dark;
         }
-        /* Auth pill at top of page when logged in */
-        .auth-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 14px;
+        /* Floating Logout button (top-right) shown when logged in */
+        .logout-floating {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 50;
+            margin: 0;
+        }
+        .logout-floating button {
             background: #1e2433;
             border: 1px solid #2a3142;
-            border-radius: 8px;
-            margin-bottom: 16px;
-            font-size: 12px;
-        }
-        .auth-status {
-            color: #4caf50;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .auth-status::before {
-            content: '';
-            width: 6px; height: 6px;
-            border-radius: 50%;
-            background: #4caf50;
-            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2);
-        }
-        .logout-btn {
-            background: transparent;
-            border: 1px solid #3a4255;
             color: #8892a6;
-            padding: 4px 12px;
+            padding: 6px 14px;
             border-radius: 6px;
             font-size: 12px;
             cursor: pointer;
         }
-        .logout-btn:hover {
+        .logout-floating button:hover {
             border-color: #f44336;
             color: #f44336;
         }
+        /* Slide-in toast notifications (replacing inline flash banner) */
+        .toast {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            max-width: 280px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #fff;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            z-index: 200;
+            transform: translateX(120%);
+            transition: transform 0.25s ease-out;
+        }
+        .toast.show { transform: translateX(0); }
+        .toast.success { background: #2e7d32; }
+        .toast.error { background: #c62828; }
+        .toast.info { background: #1976d2; }
+        /* When the floating logout AND a toast are both shown, stack the toast just below */
+        .logout-floating + .toast { top: 56px; }
         /* Read-only snapshot card shown when not logged in */
         .snapshot-row {
             display: flex;
@@ -892,20 +896,18 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
     </style>
 </head>
 <body>
-    <div class="container">
-        <?php if ($authed): ?>
-            <div class="auth-bar">
-                <span class="auth-status">Authenticated</span>
-                <form method="POST" style="margin: 0;">
-                    <input type="hidden" name="action" value="logout">
-                    <button type="submit" class="logout-btn">Logout</button>
-                </form>
-            </div>
-        <?php endif; ?>
+    <?php if ($authed): ?>
+        <form method="POST" class="logout-floating">
+            <input type="hidden" name="action" value="logout">
+            <button type="submit">Logout</button>
+        </form>
+    <?php endif; ?>
 
-        <?php if ($message): ?>
-            <div class="message <?= $messageType ?>"><?= htmlspecialchars($message) ?></div>
-        <?php endif; ?>
+    <?php if ($message): ?>
+        <div class="toast <?= htmlspecialchars($messageType ?: 'info') ?>" id="toast"><?= htmlspecialchars($message) ?></div>
+    <?php endif; ?>
+
+    <div class="container">
 
         <?php if (!$authed): ?>
             <!-- Read-only snapshot -->
@@ -1092,7 +1094,7 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
     <div class="modal-overlay" id="loginModalOverlay">
         <div class="modal">
             <div class="modal-title">Log in to edit</div>
-            <div class="modal-desc">Enter the settings password. You'll stay logged in for 30 minutes.</div>
+            <div class="modal-desc">Enter your settings password.</div>
             <form method="POST" id="loginForm">
                 <input type="hidden" name="action" value="login">
                 <div class="password-wrapper">
@@ -1305,16 +1307,16 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             if (e.target === this) hideNotificationModal();
         });
 
-        // Auto-dismiss message banner after 3 seconds
-        const messageBanner = document.querySelector('.message');
-        if (messageBanner) {
+        // Toast: slide in on load, slide out after 3.5s
+        (function () {
+            const toast = document.getElementById('toast');
+            if (!toast) return;
+            requestAnimationFrame(() => toast.classList.add('show'));
             setTimeout(() => {
-                messageBanner.style.transition = 'opacity 0.3s, margin-top 0.3s';
-                messageBanner.style.opacity = '0';
-                messageBanner.style.marginTop = '-' + messageBanner.offsetHeight + 'px';
-                setTimeout(() => messageBanner.remove(), 300);
-            }, 3000);
-        }
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        })();
 
     </script>
     <div class="project-links">
