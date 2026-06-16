@@ -451,6 +451,146 @@ def check_and_send_expiry_reminder():
         log_event(f"Sent expiry reminder email: {days_remaining} days remaining", "SUCCESS")
 
 
+def check_and_send_vehicle_switch_reminder():
+    """If the next auto-buy will use a different vehicle than the current permit,
+    send a heads-up email with magic-link buttons to switch which car gets the next permit.
+    Idempotent per permit_number (won't re-send for the same active permit)."""
+    if not is_notification_enabled('expiry_reminder'):
+        return
+
+    permit_path = Path(__file__).parent / 'permit.json'
+    if not permit_path.exists():
+        return
+    try:
+        with open(permit_path, 'r') as f:
+            permit_data = json.load(f)
+    except Exception:
+        return
+
+    current_plate = (permit_data.get('plateNumber') or '').strip()
+    permit_number = (permit_data.get('permitNumber') or '').strip()
+    valid_to = permit_data.get('validTo') or ''
+    if not (current_plate and permit_number and valid_to):
+        return
+
+    default_plate = ((settings.get('autobuyer') or {}).get('default_vehicle') or '').strip()
+    if not default_plate or default_plate.upper() == current_plate.upper():
+        return  # no surprise switch coming
+
+    # Load cars list to look up names
+    cars_path = Path(__file__).parent / 'config' / 'info_cars.json'
+    try:
+        with open(cars_path) as f:
+            cars = json.load(f)
+    except Exception:
+        return
+
+    # Parse expiry. validTo formats seen: "Jun 16, 2026 at 11:59 PM" or "Jun 16, 2026: 23:59"
+    expiry_date = None
+    for fmt in ("%b %d, %Y at %I:%M %p", "%b %d, %Y"):
+        try:
+            expiry_date = datetime.strptime(valid_to.split(':')[0].strip() if ':' in valid_to and 'at' not in valid_to else valid_to, fmt)
+            break
+        except ValueError:
+            continue
+    if not expiry_date:
+        return
+
+    days_remaining = (expiry_date - datetime.now()).days
+    if days_remaining < 0 or days_remaining > 3:
+        return
+
+    # Dedupe: one email per permit_number
+    sent_file = Path(__file__).parent / '.vehicle_switch_reminder_sent'
+    if sent_file.exists() and sent_file.read_text().strip() == permit_number:
+        return
+
+    def name_for(plate):
+        for c in cars:
+            if (c.get('plate') or '').strip().upper() == plate.strip().upper():
+                return c.get('name') or plate
+        return plate
+
+    current_name = name_for(current_plate)
+    default_name = name_for(default_plate)
+
+    # HMAC-signed switch links. Secret = SETTINGS_PASS from env so PHP can verify.
+    secret = (os.getenv('SETTINGS_PASS') or 'unset-secret').encode()
+
+    def make_token(plate):
+        import hmac, hashlib
+        msg = f"switch:{permit_number}:{plate.strip().upper()}".encode()
+        return hmac.new(secret, msg, hashlib.sha256).hexdigest()[:16]
+
+    base_url = "https://fucktorontoparking.ca/api/switch_vehicle.php"
+
+    # Build the buttons (default first as "Confirm", others as "Switch to")
+    buttons_html = ""
+    ordered = sorted(cars, key=lambda c: 0 if (c.get('plate') or '').strip().upper() == default_plate.upper() else 1)
+    for c in ordered:
+        plate = (c.get('plate') or '').strip()
+        if not plate:
+            continue
+        name = c.get('name') or plate
+        is_default = plate.upper() == default_plate.upper()
+        token = make_token(plate)
+        url = f"{base_url}?plate={plate}&token={token}"
+        if is_default:
+            label = f"Confirm {name} ({plate})"
+            bg = "#2e7d32"
+        else:
+            label = f"Switch to {name} ({plate})"
+            bg = "#1976d2"
+        buttons_html += f'''
+                            <tr>
+                                <td style="padding: 6px 0;">
+                                    <a href="{url}" style="display: block; padding: 12px 16px; background-color: {bg}; color: #ffffff; text-decoration: none; border-radius: 6px; text-align: center; font-weight: 600; font-size: 14px;">{label}</a>
+                                </td>
+                            </tr>'''
+
+    subject = f"Auto-buyer will switch to {default_name}"
+    message = (f"Your current {current_name} permit ({permit_number}) expires {valid_to}. "
+               f"The auto-buyer is set to buy for {default_name} ({default_plate}) next. "
+               f"To switch, click one of the buttons in this email.")
+
+    html_body = f'''<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5; margin: 0; padding: 20px;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+        <tr>
+            <td align="center">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width: 520px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <tr>
+                        <td style="padding: 24px;">
+                            <h2 style="margin: 0 0 12px; color: #1976d2;">Auto-buyer will switch vehicles</h2>
+                            <p style="margin: 0 0 16px; color: #555; font-size: 14px;">
+                                Your current <strong>{current_name}</strong> permit ({permit_number}) expires <strong>{valid_to}</strong>.
+                            </p>
+                            <p style="margin: 0 0 16px; color: #555; font-size: 14px;">
+                                The auto-buyer is currently set to buy for <strong>{default_name} ({default_plate})</strong> next.
+                                Tap below to confirm or switch:
+                            </p>
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+{buttons_html}
+                            </table>
+                            <p style="margin: 16px 0 0; color: #999; font-size: 11px; text-align: center;">
+                                Each link is single-use for this permit. After the next auto-buy, the links expire.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>'''
+
+    if send_email_notification(subject, message, html_body=html_body):
+        sent_file.write_text(permit_number)
+        log_event(f"Sent vehicle switch reminder: current {current_name} -> default {default_name}", "SUCCESS")
+
+
 def build_success_email_html(vehicle_name, vehicle_plate, permit_data, github_success, price_change_info=None):
     """Build a mobile-friendly HTML email for successful permit purchase (Outlook compatible)."""
     github_badge_bg = '#e8f5e9' if github_success else '#fff3e0'
@@ -1612,8 +1752,9 @@ if __name__ == "__main__":
     if deleted > 0:
         log_event(f"Cleaned up {deleted} old log file(s)", "INFO")
 
-    # Check for expiry reminders (runs every time script is invoked)
+    # Check for expiry / vehicle-switch reminders (runs every time script is invoked)
     check_and_send_expiry_reminder()
+    check_and_send_vehicle_switch_reminder()
 
     # Parse command-line arguments
     parser = argparse.ArgumentParser(
@@ -1652,8 +1793,14 @@ Examples:
     parser.add_argument('--refetch', action='store_true', help='Refetch existing permit (searches by plate + last 4 card digits)')
     parser.add_argument('--headless', action='store_true', help='Run Chrome in headless mode (for server/cron automation)')
     parser.add_argument('--dry-run', action='store_true', help='Test run: fill forms but stop before payment (no purchase)')
+    parser.add_argument('--reminder-check', action='store_true', help='Only run reminder checks (expiry + vehicle-switch) then exit. For an early-warning cron.')
 
     args = parser.parse_args()
+
+    # --reminder-check: reminders already ran above, so just exit cleanly
+    if args.reminder_check:
+        print(bcolors.OKCYAN + "Reminder check complete. Exiting." + bcolors.ENDC)
+        sys.exit(0)
 
     # When no --vehicle is given in headless mode, fall back to the default from settings
     if args.vehicle is None and args.headless:
