@@ -1433,6 +1433,7 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             const name = sel.options[sel.selectedIndex].dataset.name || plate;
             document.getElementById('hidden_buy_vehicle_plate').value = plate;
             document.getElementById('hidden_buy_dry_run').value = isDryRun ? '1' : '';
+            document.getElementById('buyNowCarName').textContent = name + ' (' + plate + ')';
 
             // Only show the "keep display" checkbox when buying for a non-default vehicle
             const skipWrap = document.getElementById('buyNowSkipDisplayWrap');
