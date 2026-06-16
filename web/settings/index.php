@@ -1,6 +1,35 @@
 <?php
 require_once __DIR__ . '/../config.php';
 
+// "Log in once, edit freely" session model
+session_name('parking_settings');
+session_set_cookie_params(['httponly' => true, 'samesite' => 'Lax']);
+session_start();
+
+$IDLE_LIMIT_SECONDS = 1800; // 30 min
+$authed = false;
+if (!empty($_SESSION['settings_auth']) && !empty($_SESSION['settings_auth_time'])) {
+    if (time() - $_SESSION['settings_auth_time'] <= $IDLE_LIMIT_SECONDS) {
+        $authed = true;
+        $_SESSION['settings_auth_time'] = time();
+    } else {
+        $_SESSION = [];
+        @session_destroy();
+        @session_start();
+        $_SESSION['flash_message'] = 'Session expired after 30 minutes idle. Log in again to edit.';
+        $_SESSION['flash_type'] = 'info';
+    }
+}
+
+// One-shot flash from a redirect
+$message = null;
+$messageType = null;
+if (!empty($_SESSION['flash_message'])) {
+    $message = $_SESSION['flash_message'];
+    $messageType = $_SESSION['flash_type'] ?? 'success';
+    unset($_SESSION['flash_message'], $_SESSION['flash_type']);
+}
+
 // Load settings
 $settings = [];
 if (file_exists($settingsFile)) {
@@ -173,34 +202,49 @@ function clearFailedAttempts($file, $ip) {
     }
 }
 
-// Handle form submission (requires auth via POST password field)
-$message = null;
-$messageType = null;
+// Handle form submission
 $clientIp = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    $authenticated = false;
+    $action = $_POST['action'];
 
-    // Check if IP is blocked
-    $blockedMinutes = isIpBlocked($rateLimitFile, $clientIp, $maxAttempts, $lockoutMinutes);
-    if ($blockedMinutes) {
-        $message = "Too many failed attempts. Try again in $blockedMinutes minute(s).";
-        $messageType = 'error';
-    } elseif ($authConfigured) {
-        // Check password from modal
-        if (isset($_POST['password']) && $_POST['password'] === $authPass) {
-            $authenticated = true;
+    // Logout: clear session and redirect (PRG)
+    if ($action === 'logout') {
+        $_SESSION = [];
+        @session_destroy();
+        header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
+        exit;
+    }
+
+    // Login: rate-limited password verification, sets session, redirects (PRG)
+    if ($action === 'login') {
+        $blockedMinutes = isIpBlocked($rateLimitFile, $clientIp, $maxAttempts, $lockoutMinutes);
+        if ($blockedMinutes) {
+            $message = "Too many failed attempts. Try again in $blockedMinutes minute(s).";
+            $messageType = 'error';
+        } elseif (!$authConfigured) {
+            // No SETTINGS_USER/PASS configured: log in unconditionally (initial setup)
+            $_SESSION['settings_auth'] = true;
+            $_SESSION['settings_auth_time'] = time();
+            $_SESSION['flash_message'] = 'Edit mode enabled (no password configured).';
+            $_SESSION['flash_type'] = 'info';
+            header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
+            exit;
+        } elseif (isset($_POST['password']) && hash_equals($authPass, $_POST['password'])) {
+            $_SESSION['settings_auth'] = true;
+            $_SESSION['settings_auth_time'] = time();
             clearFailedAttempts($rateLimitFile, $clientIp);
-        }
-
-        if (!$authenticated && !$blockedMinutes) {
+            $_SESSION['flash_message'] = 'Logged in. Edit mode enabled for 30 minutes.';
+            $_SESSION['flash_type'] = 'success';
+            header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
+            exit;
+        } else {
             $attempts = recordFailedAttempt($rateLimitFile, $clientIp);
             $remaining = $maxAttempts - $attempts;
             if ($remaining > 0) {
                 $message = "Incorrect password.";
             } else {
                 $message = "Too many failed attempts. Locked out for $lockoutMinutes minutes.";
-                // Send email alert for lockout
                 if ($emailFrom && $emailTo) {
                     $userAgent = htmlspecialchars($_SERVER['HTTP_USER_AGENT'] ?? 'Unknown');
                     $referer = htmlspecialchars($_SERVER['HTTP_REFERER'] ?? 'Direct');
@@ -225,14 +269,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 }
             }
             $messageType = 'error';
-            sleep(2); // Slow down brute force
+            sleep(2);
         }
+    } elseif (!$authed) {
+        // Any other action requires an authenticated session
+        $message = 'Please log in to make changes.';
+        $messageType = 'error';
     } else {
-        // No auth configured - allow changes (for initial setup)
-        $authenticated = true;
-    }
-
-    if ($authenticated) {
         if ($_POST['action'] === 'save_notifications') {
             $settings['notifications'] = [
                 'purchase_success' => isset($_POST['notify_purchase_success']),
@@ -611,6 +654,90 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             margin-bottom: 12px;
             color-scheme: dark;
         }
+        /* Auth pill at top of page when logged in */
+        .auth-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 14px;
+            background: #1e2433;
+            border: 1px solid #2a3142;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 12px;
+        }
+        .auth-status {
+            color: #4caf50;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .auth-status::before {
+            content: '';
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: #4caf50;
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2);
+        }
+        .logout-btn {
+            background: transparent;
+            border: 1px solid #3a4255;
+            color: #8892a6;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .logout-btn:hover {
+            border-color: #f44336;
+            color: #f44336;
+        }
+        /* Read-only snapshot card shown when not logged in */
+        .snapshot-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #3a4255;
+        }
+        .snapshot-row:last-child { border-bottom: none; }
+        .snapshot-label {
+            font-size: 14px;
+            color: #8892a6;
+        }
+        .snapshot-value {
+            font-size: 14px;
+            color: #e2e8f0;
+            font-weight: 500;
+            text-align: right;
+        }
+        .snapshot-value .small-meta {
+            display: block;
+            font-size: 11px;
+            color: #5a6378;
+            font-weight: 400;
+            margin-top: 2px;
+        }
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            margin-top: 8px;
+            border: none;
+            border-radius: 8px;
+            background: #1976d2;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .login-btn:hover { background: #1565c0; }
+        /* Confirm-only modal (used in edit mode where password is already established) */
+        .modal-confirm-msg {
+            font-size: 14px;
+            color: #cbd5e1;
+            margin-bottom: 18px;
+            line-height: 1.5;
+        }
         .vehicle-select:focus {
             outline: none;
             border-color: #64b5f6;
@@ -766,10 +893,72 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
 </head>
 <body>
     <div class="container">
+        <?php if ($authed): ?>
+            <div class="auth-bar">
+                <span class="auth-status">Authenticated</span>
+                <form method="POST" style="margin: 0;">
+                    <input type="hidden" name="action" value="logout">
+                    <button type="submit" class="logout-btn">Logout</button>
+                </form>
+            </div>
+        <?php endif; ?>
+
         <?php if ($message): ?>
             <div class="message <?= $messageType ?>"><?= htmlspecialchars($message) ?></div>
         <?php endif; ?>
 
+        <?php if (!$authed): ?>
+            <!-- Read-only snapshot -->
+            <?php
+            $defaultVehicleName = null;
+            foreach ($cars as $c) {
+                if ($defaultVehiclePlate && strcasecmp($c['plate'] ?? '', $defaultVehiclePlate) === 0) {
+                    $defaultVehicleName = $c['name'] ?? null;
+                    break;
+                }
+            }
+            $notifFlags = $settings['notifications'] ?? [];
+            $notifEnabledCount = count(array_filter([
+                $notifFlags['purchase_success'] ?? true,
+                $notifFlags['purchase_failed'] ?? true,
+                $notifFlags['expiry_reminder'] ?? true,
+                $notifFlags['security_alerts'] ?? true,
+            ]));
+            $disabledUntilSnap = $settings['autobuyer']['disabled_until'] ?? null;
+            $untilSnapLabel = ($disabledUntilSnap && preg_match('/^\d{4}-\d{2}-\d{2}$/', $disabledUntilSnap))
+                ? date('M j, Y', strtotime($disabledUntilSnap)) : null;
+            ?>
+            <div class="card">
+                <div class="header">
+                    <span class="title">Settings</span>
+                </div>
+                <div class="snapshot-row">
+                    <span class="snapshot-label">Auto-buyer</span>
+                    <span class="snapshot-value">
+                        <span class="status-badge <?= $autobuyerEnabled ? 'on' : 'off' ?>"><?= $autobuyerEnabled ? 'ON' : 'OFF' ?></span>
+                        <?php if (!$autobuyerEnabled && $untilSnapLabel): ?>
+                            <span class="small-meta">re-enables <?= htmlspecialchars($untilSnapLabel) ?></span>
+                        <?php endif; ?>
+                    </span>
+                </div>
+                <?php if (!empty($cars)): ?>
+                <div class="snapshot-row">
+                    <span class="snapshot-label">Default Vehicle</span>
+                    <span class="snapshot-value">
+                        <?= htmlspecialchars($defaultVehicleName ?: '—') ?>
+                        <?php if ($defaultVehiclePlate): ?>
+                            <span class="small-meta"><?= htmlspecialchars($defaultVehiclePlate) ?></span>
+                        <?php endif; ?>
+                    </span>
+                </div>
+                <?php endif; ?>
+                <div class="snapshot-row">
+                    <span class="snapshot-label">Email Notifications</span>
+                    <span class="snapshot-value"><?= $notifEnabledCount ?> of 4 enabled</span>
+                </div>
+                <button type="button" class="login-btn" onclick="showLoginModal()">Log in to edit</button>
+            </div>
+        <?php else: ?>
         <div class="card">
             <div class="header">
                 <span class="title">Settings</span>
@@ -895,32 +1084,50 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
 
             <button type="button" id="notificationSaveBtn" class="save-btn" onclick="showNotificationModal()" style="display: none;">Save Notification Settings</button>
         </div>
+        <?php endif; ?>
 
     </div>
 
-    <!-- Password Modal -->
-    <div class="modal-overlay" id="modalOverlay">
+    <!-- Login Modal (view-mode only) -->
+    <div class="modal-overlay" id="loginModalOverlay">
         <div class="modal">
-            <div class="modal-title"><?= $autobuyerEnabled ? 'Disable' : 'Enable' ?> Auto-buyer</div>
-            <div class="modal-desc">Enter password to confirm this change.</div>
-            <form method="POST" id="toggleForm">
-                <input type="hidden" name="action" value="toggle_autobuyer">
-                <?php if ($autobuyerEnabled): ?>
-                <div class="modal-date-wrapper">
-                    <label for="disabledUntilInput" class="modal-date-label">Auto-re-enable on (optional)</label>
-                    <input type="date" name="disabled_until" id="disabledUntilInput" class="modal-input" min="<?= date('Y-m-d', strtotime('+1 day')) ?>">
-                    <div class="modal-date-hint">Leave blank to disable indefinitely.</div>
-                </div>
-                <?php endif; ?>
+            <div class="modal-title">Log in to edit</div>
+            <div class="modal-desc">Enter the settings password. You'll stay logged in for 30 minutes.</div>
+            <form method="POST" id="loginForm">
+                <input type="hidden" name="action" value="login">
                 <div class="password-wrapper">
-                    <input type="password" name="password" id="passwordInput" class="modal-input" placeholder="Password" autocomplete="current-password" required>
-                    <button type="button" class="toggle-password" onclick="togglePasswordVisibility()">
-                        <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <input type="password" name="password" id="loginPasswordInput" class="modal-input" placeholder="Password" autocomplete="current-password" required autofocus>
+                    <button type="button" class="toggle-password" onclick="toggleLoginPasswordVisibility()">
+                        <svg id="loginEyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                             <circle cx="12" cy="12" r="3"></circle>
                         </svg>
                     </button>
                 </div>
+                <div class="modal-buttons">
+                    <button type="button" class="modal-btn cancel" onclick="hideLoginModal()">Cancel</button>
+                    <button type="submit" class="modal-btn confirm save">Log in</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Disable/Enable Auto-buyer Confirm Modal (authed only) -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <div class="modal-title"><?= $autobuyerEnabled ? 'Disable' : 'Enable' ?> Auto-buyer</div>
+            <form method="POST" id="toggleForm">
+                <input type="hidden" name="action" value="toggle_autobuyer">
+                <?php if ($autobuyerEnabled): ?>
+                <div class="modal-confirm-msg">Disable the auto-buyer? No permits will be purchased until re-enabled.</div>
+                <div class="modal-date-wrapper">
+                    <label for="disabledUntilInput" class="modal-date-label">Auto-re-enable on (optional)</label>
+                    <input type="date" name="disabled_until" id="disabledUntilInput" class="modal-input" min="<?= date('Y-m-d', strtotime('+1 day')) ?>">
+                    <div class="modal-date-hint">Leave blank to disable indefinitely.</div>
+                </div>
+                <?php else: ?>
+                <div class="modal-confirm-msg">Re-enable the auto-buyer? Permits will resume on the next scheduled run.</div>
+                <?php endif; ?>
                 <div class="modal-buttons">
                     <button type="button" class="modal-btn cancel" onclick="hideModal()">Cancel</button>
                     <button type="submit" class="modal-btn confirm <?= $autobuyerEnabled ? 'disable' : 'enable' ?>">
@@ -931,17 +1138,14 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
         </div>
     </div>
 
-    <!-- Default Vehicle Modal -->
+    <!-- Default Vehicle Confirm Modal (authed only) -->
     <div class="modal-overlay" id="vehicleModalOverlay">
         <div class="modal">
             <div class="modal-title">Save Default Vehicle</div>
-            <div class="modal-desc">Enter password to confirm this change.</div>
             <form method="POST" id="vehicleForm">
                 <input type="hidden" name="action" value="save_default_vehicle">
                 <input type="hidden" name="default_vehicle" id="hidden_default_vehicle">
-                <div class="password-wrapper">
-                    <input type="password" name="password" id="vehiclePasswordInput" class="modal-input" placeholder="Password" autocomplete="current-password" required>
-                </div>
+                <div class="modal-confirm-msg">Set this as the default vehicle for the next auto-buy?</div>
                 <div class="modal-buttons">
                     <button type="button" class="modal-btn cancel" onclick="hideVehicleModal()">Cancel</button>
                     <button type="submit" class="modal-btn confirm save">Save</button>
@@ -950,26 +1154,17 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
         </div>
     </div>
 
-    <!-- Notification Settings Modal -->
+    <!-- Notification Settings Confirm Modal (authed only) -->
     <div class="modal-overlay" id="notificationModalOverlay">
         <div class="modal">
             <div class="modal-title">Save Notification Settings</div>
-            <div class="modal-desc">Enter password to confirm this change.</div>
             <form method="POST" id="notificationForm">
                 <input type="hidden" name="action" value="save_notifications">
                 <input type="hidden" name="notify_purchase_success" id="hidden_purchase_success">
                 <input type="hidden" name="notify_purchase_failed" id="hidden_purchase_failed">
                 <input type="hidden" name="notify_expiry_reminder" id="hidden_expiry_reminder">
                 <input type="hidden" name="notify_security_alerts" id="hidden_security_alerts">
-                <div class="password-wrapper">
-                    <input type="password" name="password" id="notificationPasswordInput" class="modal-input" placeholder="Password" autocomplete="current-password" required>
-                    <button type="button" class="toggle-password" onclick="toggleNotificationPasswordVisibility()">
-                        <svg id="notificationEyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                            <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                    </button>
-                </div>
+                <div class="modal-confirm-msg">Save your email notification preferences?</div>
                 <div class="modal-buttons">
                     <button type="button" class="modal-btn cancel" onclick="hideNotificationModal()">Cancel</button>
                     <button type="submit" class="modal-btn confirm save">Save</button>
@@ -979,28 +1174,57 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
     </div>
 
     <script>
+        // Login modal (the only password-bearing modal now)
+        function showLoginModal() {
+            document.getElementById('loginModalOverlay').classList.add('active');
+            document.getElementById('loginPasswordInput').focus();
+        }
+
+        function hideLoginModal() {
+            document.getElementById('loginModalOverlay').classList.remove('active');
+            const input = document.getElementById('loginPasswordInput');
+            input.type = 'password';
+            input.value = '';
+            updateLoginEyeIcon(false);
+        }
+
+        function toggleLoginPasswordVisibility() {
+            const input = document.getElementById('loginPasswordInput');
+            const isPassword = input.type === 'password';
+            input.type = isPassword ? 'text' : 'password';
+            updateLoginEyeIcon(isPassword);
+        }
+
+        function updateLoginEyeIcon(visible) {
+            const icon = document.getElementById('loginEyeIcon');
+            if (visible) {
+                icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>';
+            } else {
+                icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
+            }
+        }
+
+        const _loginOverlay = document.getElementById('loginModalOverlay');
+        if (_loginOverlay) {
+            _loginOverlay.addEventListener('click', function(e) {
+                if (e.target === this) hideLoginModal();
+            });
+        }
+
+        // Disable/Enable auto-buyer confirmation modal (no password — authed session)
         function showModal() {
             document.getElementById('modalOverlay').classList.add('active');
-            document.getElementById('passwordInput').focus();
         }
 
         function hideModal() {
             document.getElementById('modalOverlay').classList.remove('active');
-            // Reset password visibility when closing
-            const input = document.getElementById('passwordInput');
-            input.type = 'password';
-            updateEyeIcon(false);
         }
 
-        function togglePasswordVisibility() {
-            const input = document.getElementById('passwordInput');
-            const isPassword = input.type === 'password';
-            input.type = isPassword ? 'text' : 'password';
-            updateEyeIcon(isPassword);
-        }
-
+        // Stubs retained so any leftover handlers don't throw — no password fields anymore
+        function togglePasswordVisibility() {}
         function updateEyeIcon(visible) {
             const icon = document.getElementById('eyeIcon');
+            if (!icon) return;
             if (visible) {
                 // Eye with slash (hidden)
                 icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>';
@@ -1021,6 +1245,7 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
                 hideModal();
                 hideNotificationModal();
                 hideVehicleModal();
+                hideLoginModal();
             }
         });
 
@@ -1053,57 +1278,29 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
         function showVehicleModal() {
             document.getElementById('hidden_default_vehicle').value = document.getElementById('defaultVehicleSelect').value;
             document.getElementById('vehicleModalOverlay').classList.add('active');
-            document.getElementById('vehiclePasswordInput').focus();
         }
 
         function hideVehicleModal() {
-            const overlay = document.getElementById('vehicleModalOverlay');
-            overlay.classList.remove('active');
-            const input = document.getElementById('vehiclePasswordInput');
-            input.value = '';
+            document.getElementById('vehicleModalOverlay').classList.remove('active');
         }
 
         document.getElementById('vehicleModalOverlay').addEventListener('click', function(e) {
             if (e.target === this) hideVehicleModal();
         });
 
-        // Notification modal functions
+        // Notification confirm modal — copies checkbox values into hidden inputs, then shows
         function showNotificationModal() {
-            // Copy checkbox states to hidden inputs
             document.getElementById('hidden_purchase_success').value = document.getElementById('notify_purchase_success').checked ? '1' : '';
             document.getElementById('hidden_purchase_failed').value = document.getElementById('notify_purchase_failed').checked ? '1' : '';
             document.getElementById('hidden_expiry_reminder').value = document.getElementById('notify_expiry_reminder').checked ? '1' : '';
             document.getElementById('hidden_security_alerts').value = document.getElementById('notify_security_alerts').checked ? '1' : '';
-
             document.getElementById('notificationModalOverlay').classList.add('active');
-            document.getElementById('notificationPasswordInput').focus();
         }
 
         function hideNotificationModal() {
             document.getElementById('notificationModalOverlay').classList.remove('active');
-            const input = document.getElementById('notificationPasswordInput');
-            input.type = 'password';
-            input.value = '';
-            updateNotificationEyeIcon(false);
         }
 
-        function toggleNotificationPasswordVisibility() {
-            const input = document.getElementById('notificationPasswordInput');
-            const isPassword = input.type === 'password';
-            input.type = isPassword ? 'text' : 'password';
-            updateNotificationEyeIcon(isPassword);
-        }
-
-        function updateNotificationEyeIcon(visible) {
-            const icon = document.getElementById('notificationEyeIcon');
-            if (visible) {
-                icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>';
-            } else {
-                icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
-            }
-        }
-
-        // Close notification modal on overlay click
         document.getElementById('notificationModalOverlay').addEventListener('click', function(e) {
             if (e.target === this) hideNotificationModal();
         });
