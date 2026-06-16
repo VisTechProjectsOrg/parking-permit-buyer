@@ -991,8 +991,10 @@ def find_permit_pdf(folder):
 
     return None
 
-def create_permit_json(permit_data, output_path, vehicle_name=None):
-    """Create permit.json file from parsed permit data."""
+def create_permit_json(permit_data, output_path, vehicle_name=None, update_display=True):
+    """Create permit.json file from parsed permit data.
+    If update_display=False, skips writing permit.json (so the home page and e-ink display
+    keep showing the previous permit), but still appends to permits_history.json."""
     # Look up vehicle name from plate if not provided
     if vehicle_name is None and permit_data.get("plate_number"):
         try:
@@ -1049,11 +1051,14 @@ def create_permit_json(permit_data, output_path, vehicle_name=None):
         "amountPaid": permit_data.get("amount_paid")
     }
 
-    # Write to file
-    with open(output_path, 'w') as f:
-        json.dump(json_data, f, indent=2)
+    # Write to file (unless we're explicitly keeping the previous display state)
+    if update_display:
+        with open(output_path, 'w') as f:
+            json.dump(json_data, f, indent=2)
+    else:
+        print(bcolors.WARNING + "Skipped writing permit.json (--no-display): home page and e-ink display will keep showing the previous permit." + bcolors.ENDC)
 
-    # Append to permits history (for status page)
+    # Append to permits history (for status page) — always, even with --no-display
     history_path = Path(output_path).parent / 'permits_history.json'
     try:
         if history_path.exists():
@@ -1794,6 +1799,7 @@ Examples:
     parser.add_argument('--headless', action='store_true', help='Run Chrome in headless mode (for server/cron automation)')
     parser.add_argument('--dry-run', action='store_true', help='Test run: fill forms but stop before payment (no purchase)')
     parser.add_argument('--reminder-check', action='store_true', help='Only run reminder checks (expiry + vehicle-switch) then exit. For an early-warning cron.')
+    parser.add_argument('--no-display', action='store_true', help='Buy normally but keep permit.json + e-ink display showing the previous permit (history is still updated).')
 
     args = parser.parse_args()
 
@@ -2156,15 +2162,15 @@ Examples:
         # Create permit.json if we got all data
         if all(permit_data.values()):
             json_path = Path('permit.json')
-            create_permit_json(permit_data, json_path)
+            create_permit_json(permit_data, json_path, update_display=not args.no_display)
 
-            # Push to GitHub if not disabled
+            # Push to GitHub if not disabled and we're updating the display
             github_success = True
-            if not args.no_github:
+            if not args.no_github and not args.no_display:
                 print(bcolors.OKCYAN + "\nPushing to GitHub..." + bcolors.ENDC)
                 github_success = commit_and_push_to_github(json_path, f"Update permit to {permit_data['permit_number']}")
 
-            if not github_success and not args.no_github:
+            if not github_success and not args.no_github and not args.no_display:
                 print(bcolors.WARNING + "GitHub push failed - archiving PDF anyway (display sync may be stale)" + bcolors.ENDC)
             archive_pdf(pdf_path, permit_data.get('permit_number'))
 
