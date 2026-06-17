@@ -4,7 +4,6 @@ import json
 import argparse
 import time
 import glob
-import socket
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -179,6 +178,42 @@ def check_autobuyer_reenable():
         print(bcolors.OKCYAN + f"Auto-re-enabled autobuyer (disabled_until {disabled_until} has passed)" + bcolors.ENDC)
 
 check_autobuyer_reenable()
+
+
+def existing_permit_covers_vehicle(vehicle_index):
+    """Return True if permit.json already shows the target vehicle has a still-valid permit.
+    Lets the daily cron exit immediately without spinning up Selenium when no buy is needed."""
+    permit_path = Path(__file__).parent / 'permit.json'
+    cars_path = Path(__file__).parent / 'config' / 'info_cars.json'
+    if not permit_path.exists() or vehicle_index is None:
+        return False
+    try:
+        with open(permit_path) as f:
+            permit_data = json.load(f)
+        with open(cars_path) as f:
+            cars = json.load(f)
+    except Exception:
+        return False
+    if vehicle_index < 0 or vehicle_index >= len(cars):
+        return False
+
+    target_plate = (cars[vehicle_index].get('plate') or '').strip().upper()
+    permit_plate = (permit_data.get('plateNumber') or '').strip().upper()
+    if not target_plate or target_plate != permit_plate:
+        return False
+
+    valid_to = permit_data.get('validTo') or ''
+    expiry_date = None
+    for fmt in ("%b %d, %Y: %H:%M", "%b %d, %Y at %I:%M %p", "%b %d, %Y"):
+        try:
+            expiry_date = datetime.strptime(valid_to.strip(), fmt)
+            break
+        except ValueError:
+            continue
+    if not expiry_date:
+        return False
+    return expiry_date > datetime.now()
+
 
 def is_notification_enabled(notification_type):
     """Check if a notification type is enabled in settings."""
@@ -711,7 +746,7 @@ def build_success_email_html(vehicle_name, vehicle_plate, permit_data, github_su
                             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top: 15px;">
                                 <tr>
                                     <td align="center" style="padding: 15px;">
-                                        <a href="https://ilovekitty.ca/parking?permit={permit_data['permit_number']}" style="color: #1976d2; font-size: 14px; text-decoration: none;">View Permit Status</a>
+                                        <a href="https://fucktorontoparking.ca/?permit={permit_data['permit_number']}" style="color: #1976d2; font-size: 14px; text-decoration: none;">View Permit Status</a>
                                     </td>
                                 </tr>
                             </table>
@@ -721,7 +756,7 @@ def build_success_email_html(vehicle_name, vehicle_plate, permit_data, github_su
                     <tr>
                         <td align="center" style="background-color: #f8f9fa; padding: 20px; font-size: 12px; color: #999999;">
                             Toronto Parking Pass Buyer - Automated<br>
-                            Sent from: {socket.gethostname()}
+                            Sent from: fucktorontoparking.ca
                         </td>
                     </tr>
                 </table>
@@ -794,7 +829,7 @@ def build_error_email_html(title, message, vehicle_info=None):
                     <tr>
                         <td align="center" style="background-color: #f8f9fa; padding: 20px; font-size: 12px; color: #999999;">
                             Toronto Parking Pass Buyer - Automated<br>
-                            Sent from: {socket.gethostname()}
+                            Sent from: fucktorontoparking.ca
                         </td>
                     </tr>
                 </table>
@@ -1810,6 +1845,15 @@ Examples:
     if args.card is None and args.headless:
         args.card = 0
         print(bcolors.OKCYAN + "Headless mode: using card index 0 (only card)" + bcolors.ENDC)
+
+    # Daily-cron short-circuit: skip the whole Selenium spin-up when the target vehicle
+    # already has a still-valid permit. Only kicks in for the normal headless buy flow
+    # (not for refetch, dry-run, or parse-only).
+    if args.headless and not args.refetch and not args.parse_only and not args.dry_run:
+        if existing_permit_covers_vehicle(args.vehicle):
+            log_event(f"Active permit already covers vehicle index {args.vehicle}. Skipping buy.", "INFO")
+            print(bcolors.OKCYAN + f"Active permit already covers vehicle index {args.vehicle}. Nothing to do." + bcolors.ENDC)
+            sys.exit(0)
 
     # Configure headless mode if requested
     if args.headless:
