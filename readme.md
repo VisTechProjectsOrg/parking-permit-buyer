@@ -2,7 +2,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue)](https://www.python.org/) [![Selenium](https://img.shields.io/badge/Selenium-automation-green)](https://www.selenium.dev/)
 
-Automates purchasing and refetching parking permits from [Toronto Temp parking permits](https://secure.toronto.ca/wes/eTPP/welcome.do). Fully automated from form filling to payment to PDF download, then syncs to an [e-ink display](https://github.com/VisTechProjects/parking-permit-display) via the [Android app](https://github.com/VisTechProjects/parking-permit-android).
+Automates purchasing and refetching parking permits from [Toronto Temp parking permits](https://secure.toronto.ca/wes/eTPP/welcome.do). Fully automated from form filling to payment to PDF download, then syncs to an [e-ink display](https://github.com/VisTechProjectsOrg/parking-permit-display) via the [Android app](https://github.com/VisTechProjectsOrg/parking-permit-android).
 
 ## Why I made this
 Laziness and boredom, the fact I made this readme... says it all...
@@ -21,7 +21,7 @@ Also, the City of Toronto won't let me buy a yearly permit, requires the permit 
 ## Quick Start
 1. Clone and install:
    ```bash
-   git clone https://github.com/VisTechProjects/parking-permit-buyer.git
+   git clone https://github.com/VisTechProjectsOrg/parking-permit-buyer.git
    cd parking-permit-buyer
    pip install -r requirements.txt
    ```
@@ -140,11 +140,11 @@ python parking_pass_buyer.py --parse-only
 
 ## Related Projects
 
-- [parking-permit-display](https://github.com/VisTechProjects/parking-permit-display) - ESP32 e-ink firmware
-- [parking-permit-android](https://github.com/VisTechProjects/parking-permit-android) - Android companion app
-- [Parking permit website](https://ilovekitty.ca/parking/) - Web dashboard
+- [parking-permit-display](https://github.com/VisTechProjectsOrg/parking-permit-display) - ESP32 e-ink firmware
+- [parking-permit-android](https://github.com/VisTechProjectsOrg/parking-permit-android) - Android companion app
+- [Parking permit website](https://fucktorontoparking.ca/) - Web dashboard
 
-This script pushes `permit.json` to the [display repo](https://github.com/VisTechProjects/parking-permit-display), which the ESP32 e-ink display reads to show the current permit barcode.
+This script pushes `permit.json` to the [display repo](https://github.com/VisTechProjectsOrg/parking-permit-display), which the ESP32 e-ink display reads to show the current permit barcode.
 
 ## Troubleshooting
 - Ensure Google Chrome is installed and up-to-date
