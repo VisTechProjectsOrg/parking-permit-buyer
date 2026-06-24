@@ -31,16 +31,10 @@ flip can be retired.
 ~30-60mA) a 200mAh cell lasts only ~3-6 h. BLE is cheap (~0.02mAh per sync), so the months
 target is entirely about getting deep-sleep current low.
 
-**Feasibility for "months" on 200mAh** (battery life ~= 200mAh / avg current):
-- ~50µA  -> ~5+ months  (needs Vext/EPD/LED gated; clean board)
-- ~100µA -> ~2.5 months
-- ~200µA -> ~5-6 weeks
-- ~1mA   -> ~1 week
-
-So months is achievable, but 200mAh is tight — it only works if sleep current is ~<=100µA.
-Heltec dev boards often leak (USB-serial chip, charge IC quiescent, LED) and may sit at
-hundreds of µA / ~1mA unless gated or hardware-trimmed. **Measure first.** If it can't get
-under ~100µA, either trim the hardware or use a bigger cell (500-1000mAh) for comfortable margin.
+After checking the schematic + datasheets the realistic floor is **~20-40µA** (the LDO is only
+6µA, and there's no USB-UART chip to leak) -- justification in the gating section, runtime table
+in "Battery life estimate" below. Months is comfortably achievable on either a 100mAh or 200mAh
+cell once the LoRa is slept. **Still measure the real sleep current to confirm before trusting it.**
 
 Wake strategy:
 - Deep sleep by default.
@@ -50,9 +44,6 @@ Wake strategy:
   permit without a button press; cache it.
 - BLE caveat: while asleep it isn't advertising, so the phone can only sync during a wake
   window or button press.
-
-Battery life is dominated by deep-sleep current (**measure it** — Heltec needs `Vext` + EPD
-rail + LED gated off): ~50µA -> weeks-to-months; ~200µA -> ~5-6 weeks; ~1mA -> ~1 week.
 
 ### Power source aware (USB vs battery)
 Detect power source at boot (read the charge IC VBUS/PG pin, or an ADC on the USB rail) and branch:
@@ -86,8 +77,22 @@ So it acts exactly like today when plugged in, and only enters the months-long s
 - **LDOs are NOT the floor**: CE6260 Iq = **6µA typ** (datasheet); the always-on VDD_3V3 LDO costs
   ~6µA, the switched Ve_3V3 LDO ~0.1µA when off. Charge IC (LGS4056H) adds a few µA.
 
-So floor ~= S3 deep sleep (~10µA) + LDO (6µA) + charge IC (~few µA) + LoRa slept (~1µA) ~= **~20-40µA
-=> roughly 5-12 months on 200mAh.** LoRa is the whole ballgame; everything else is small. Measure to confirm.
+So floor ~= S3 deep sleep (~10µA) + LDO (6µA) + charge IC (~few µA) + LoRa slept (~1µA) ~= **~20-40µA**.
+LoRa is the whole ballgame; everything else is small. Measure to confirm.
+
+### Battery life estimate (deep-sleep design; wakes are negligible => runtime ~= capacity / floor)
+| Sleep floor | 100mAh | 200mAh |
+|-------------|--------|--------|
+| ~20µA (best, clean board) | ~6-7 months | ~12-14 months |
+| ~30µA (realistic)         | ~4-5 months | ~8-9 months   |
+| ~40µA (conservative)      | ~3-3.5 months | ~6-7 months |
+| **LoRa NOT slept (~1mA)** | **~4 days** | **~8 days** |
+
+Practical takeaway: **100mAh ~= 3-6 months, 200mAh ~= 6-12 months** unplugged. Caveats: usable
+capacity is ~80-85% of rating, and at multi-month timescales LiPo self-discharge (~2-3%/month)
+eats in -- so treat the top figures as theoretical (ceiling ~a year, comfortably several months).
+And it recharges over USB on every drive, so it only ever has to bridge days/weeks between charges.
+The cell size isn't the deciding factor -- sleeping the LoRa is.
 
 ### Battery read (custom -- not in the display lib)
 heltec-eink-modules has no battery read. Divider is known (0.204); it's gated by `ADC_Ctrl`/Q2.
