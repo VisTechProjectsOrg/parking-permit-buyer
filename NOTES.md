@@ -54,9 +54,30 @@ Wake strategy:
 Battery life is dominated by deep-sleep current (**measure it** — Heltec needs `Vext` + EPD
 rail + LED gated off): ~50µA -> weeks-to-months; ~200µA -> ~5-6 weeks; ~1mA -> ~1 week.
 
+### Power source aware (USB vs battery)
+Detect power source at boot (read the charge IC VBUS/PG pin, or an ADC on the USB rail) and branch:
+- **On USB:** stay awake, BLE server up, charging — sync freely. This is the current weekly
+  "plug in to update" behaviour, unchanged. Power doesn't matter while plugged in.
+- **On battery:** deep sleep aggressively; wake only on button or the RTC midnight flip.
+
+So it acts exactly like today when plugged in, and only enters the months-long sleep regime on the cell.
+
+### Getting deep-sleep current down (power gating)
+`sleep current = ESP32-S3 chip (~10µA) + every ungated peripheral`. To reach ~50µA you must kill
+the mA-level offenders before `esp_deep_sleep_start()`:
+- **Vext** — Heltec's software-controlled rail; the e-ink panel + boost circuit sit on it. Cut it
+  via the Vext control GPIO before sleep. Safe: e-ink is bistable and holds its image with no power.
+- **USB-serial chip** (CP210x/CH340) — draws ~0.5-5mA continuously if fed from the battery/3V3 rail.
+  Confirm it's VBUS-powered (dead on battery) or remove it (the S3 has native USB). Hardware check/mod.
+- **LED** (power/charge LED on the battery rail) — constant ~1-5mA. Remove the LED/resistor, or turn
+  it off via GPIO before sleep.
+- Remaining floor: 3V3 LDO + charge-IC quiescent current (usually tens of µA; needs a hardware swap to change).
+Only a meter shows which actually bite -- measure, then gate the worst.
+
 ### TODO (firmware)
 - [ ] Measure deep-sleep current on the E290 (battery line, asleep) for a real runtime number.
-- [ ] Gate Vext / EPD rail / LED before `esp_deep_sleep_start()`.
+- [ ] Power-source detect (VBUS/PG pin): USB -> stay awake + charge; battery -> deep sleep.
+- [ ] Gate before sleep: cut Vext (EPD rail), kill LED, verify USB chip is VBUS-only (else remove).
 - [ ] Store `validTo` + "next permit cached" flag in RTC memory (survives deep sleep).
 - [ ] Wake-source dispatch: button -> BLE sync; timer -> midnight flip / advertise window.
 - [ ] Compute sleep duration from `validTo` (long normally; precise wake at midnight on expiry day).
