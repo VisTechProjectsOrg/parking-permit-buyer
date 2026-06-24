@@ -62,22 +62,37 @@ Detect power source at boot (read the charge IC VBUS/PG pin, or an ADC on the US
 
 So it acts exactly like today when plugged in, and only enters the months-long sleep regime on the cell.
 
-### Getting deep-sleep current down (power gating)
-`sleep current = ESP32-S3 chip (~10µA) + every ungated peripheral`. To reach ~50µA you must kill
-the mA-level offenders before `esp_deep_sleep_start()`:
-- **Vext** — Heltec's software-controlled rail; the e-ink panel + boost circuit sit on it. Cut it
-  via the Vext control GPIO before sleep. Safe: e-ink is bistable and holds its image with no power.
-- **USB-serial chip** (CP210x/CH340) — draws ~0.5-5mA continuously if fed from the battery/3V3 rail.
-  Confirm it's VBUS-powered (dead on battery) or remove it (the S3 has native USB). Hardware check/mod.
-- **LED** (power/charge LED on the battery rail) — constant ~1-5mA. Remove the LED/resistor, or turn
-  it off via GPIO before sleep.
-- Remaining floor: 3V3 LDO + charge-IC quiescent current (usually tens of µA; needs a hardware swap to change).
-Only a meter shows which actually bite -- measure, then gate the worst.
+### Getting deep-sleep current down (power gating) -- per HT-VME290 schematic
+`sleep current = ESP32-S3 chip (~10µA) + every ungated peripheral`. Board-specific offenders,
+biggest first, to kill before `esp_deep_sleep_start()`:
+- **LoRa SX1262 (HT-RA62, U8)** -- THE big one. Sits on the always-on `VDD_3V3` rail and the
+  firmware never touches it; un-slept it draws ~0.6-1.5mA (= ~1 week on 200mAh by itself).
+  Command it to cold sleep (SX126x API) or hold its RST low before deep sleep.
+- **Vext = `Ve_3V3` rail**, switched by the `Ve_Ctrl` GPIO (LDO U3 CE6260B33M). The e-ink panel
+  + its HV boost (L5/D4-D6/VGH/VGL/etc.) hang off it. Leave Vext OFF for sleep; the heltec-eink-
+  modules lib toggles it around refreshes. Safe: e-ink is bistable, holds image with no power.
+- **NO USB-UART bridge** on this board -- native S3 USB (build sets `ARDUINO_USB_MODE=1`). So the
+  usual "USB chip leaks on battery" problem does not apply here. Nothing to do.
+- **LED2 (white)** on `VDD_3V3` (R24/R25) -- GPIO-controlled; drive it off before sleep.
+  LED1 (orange) is charge-status off `VDD_5V`, only lit while charging on USB -- ignore.
+- **Battery ADC divider already gated**: R13 390k / R15 100k switched by Q2 via `ADC_Ctrl` --
+  only draws while measuring. Leave disabled in sleep.
+- Remaining floor: `VDD_3V3` LDO (CE6260B33M) Iq + charge-IC (LGS4056H) Iq -- check datasheets;
+  this likely sets the real floor once LoRa is slept.
+
+With LoRa slept + Vext off + LED off + ADC gated, expect ~50-150µA => ~1.5-5 months on 200mAh.
+Leave LoRa awake and it's ~1 week regardless. Measure the battery line asleep to confirm.
+
+### USB-vs-battery detection
+No obvious dedicated VBUS-sense GPIO in the schematic. Options: read the charge IC (LGS4056H)
+`CHRG`/`DONE` status pins, or sample `VBAT_Read` (~4.2V + charging => on USB). Confirm whether
+the heltec lib already exposes a USB-detect pin before adding hardware.
 
 ### TODO (firmware)
 - [ ] Measure deep-sleep current on the E290 (battery line, asleep) for a real runtime number.
-- [ ] Power-source detect (VBUS/PG pin): USB -> stay awake + charge; battery -> deep sleep.
-- [ ] Gate before sleep: cut Vext (EPD rail), kill LED, verify USB chip is VBUS-only (else remove).
+- [ ] Sleep the LoRa SX1262 (cold sleep / RST low) -- the dominant drain; do this first.
+- [ ] Power-source detect (charge-IC status or VBAT_Read): USB -> stay awake + charge; battery -> deep sleep.
+- [ ] Gate before sleep: cut Vext (`Ve_Ctrl`, kills EPD rail), turn LED2 off, leave ADC divider gated.
 - [ ] Store `validTo` + "next permit cached" flag in RTC memory (survives deep sleep).
 - [ ] Wake-source dispatch: button -> BLE sync; timer -> midnight flip / advertise window.
 - [ ] Compute sleep duration from `validTo` (long normally; precise wake at midnight on expiry day).
