@@ -8,20 +8,60 @@ Two problems were addressed:
    new permit (which starts "tomorrow") began a day late, leaving one uncovered day. The buy
    now fires on the permit's last valid day (`vehicle_covered_tomorrow`), giving contiguous
    coverage.
-2. **Display flip (workaround in place):** the e-ink shows whichever permit is in `permit.json`
-   when it boots (it only powers on in the car). On the last valid day the display switches
-   from the expiring permit to the next one at 4 PM (`DISPLAY_FLIP_HOUR`), so the evening drive
-   renders the permit that's valid overnight. Server-side timing is a workaround for the
-   display being dumb and unpowered — it needs a cron run at/after 4 PM (a daily afternoon buy
-   run, or `--refresh-display`) to push the flip.
+2. **Display flip (server-side workaround in place):** on the last valid day the displayed
+   permit switches from the expiring one to the next at 4 PM (`DISPLAY_FLIP_HOUR`). Needs a
+   cron run at/after 4 PM (afternoon buy run, or `--refresh-display`) to push the change.
 
-## Proper fix: micro-LiPo on the e-ink display  (display repo, later)
-Add a small battery + buffer to the e-ink so it can:
-- cache the next permit in flash as soon as it's available, and
-- flip the displayed permit at **exactly midnight** when the new one legally becomes valid,
-  instead of relying on a server-side ~4 PM approximation.
+## Display architecture (how it actually works)
+- Board: **Heltec Vision Master E290** (ESP32-S3 + 2.9" e-ink).
+- Transport: **BLE only.** The Android app (ParkingPermitSync) pulls permit.json and pushes
+  it to the display over Bluetooth. **No WiFi on the device.**
+- The e-ink holds its image with zero power.
+- **Current state:** the firmware never sleeps (`loop()` polls the button, BLE server stays
+  up). In practice the display is **manually plugged into USB ~once a week** to sync the new
+  permit, then unplugged — the e-ink keeps showing it. No battery in use yet.
 
-This moves the timing decision onto the device (the only thing with perfect timing info) and
-removes the dependency on when a server cron runs / when the car is driven. Once this lands,
-the server-side `DISPLAY_FLIP_HOUR` flip logic can be retired.
-Lives in: https://github.com/VisTechProjectsOrg/parking-permit-display
+## Future: 200mAh LiPo + deep sleep  (display repo: parking_pass_display)
+Goal: **run for months on battery without ever plugging it in**, and auto-flip from the
+expiring permit to the next one at **exactly midnight**. Moves the timing decision onto the
+device instead of the server-side ~4 PM approximation; once it lands, the `DISPLAY_FLIP_HOUR`
+flip can be retired.
+
+**Prerequisite: the battery is useless until the firmware deep-sleeps.** As-is (always on,
+~30-60mA) a 200mAh cell lasts only ~3-6 h. BLE is cheap (~0.02mAh per sync), so the months
+target is entirely about getting deep-sleep current low.
+
+**Feasibility for "months" on 200mAh** (battery life ~= 200mAh / avg current):
+- ~50µA  -> ~5+ months  (needs Vext/EPD/LED gated; clean board)
+- ~100µA -> ~2.5 months
+- ~200µA -> ~5-6 weeks
+- ~1mA   -> ~1 week
+
+So months is achievable, but 200mAh is tight — it only works if sleep current is ~<=100µA.
+Heltec dev boards often leak (USB-serial chip, charge IC quiescent, LED) and may sit at
+hundreds of µA / ~1mA unless gated or hardware-trimmed. **Measure first.** If it can't get
+under ~100µA, either trim the hardware or use a bigger cell (500-1000mAh) for comfortable margin.
+
+Wake strategy:
+- Deep sleep by default.
+- **Button (pin 21)** -> ext/GPIO wake -> BLE sync with phone -> sleep.
+- **RTC timer wake at midnight** on expiry day -> redraw the cached next permit -> sleep (no radio).
+- **Last 1-2 days:** short periodic advertise windows so the phone can push the freshly-bought
+  permit without a button press; cache it.
+- BLE caveat: while asleep it isn't advertising, so the phone can only sync during a wake
+  window or button press.
+
+Battery life is dominated by deep-sleep current (**measure it** — Heltec needs `Vext` + EPD
+rail + LED gated off): ~50µA -> weeks-to-months; ~200µA -> ~5-6 weeks; ~1mA -> ~1 week.
+
+### TODO (firmware)
+- [ ] Measure deep-sleep current on the E290 (battery line, asleep) for a real runtime number.
+- [ ] Gate Vext / EPD rail / LED before `esp_deep_sleep_start()`.
+- [ ] Store `validTo` + "next permit cached" flag in RTC memory (survives deep sleep).
+- [ ] Wake-source dispatch: button -> BLE sync; timer -> midnight flip / advertise window.
+- [ ] Compute sleep duration from `validTo` (long normally; precise wake at midnight on expiry day).
+- [ ] Last-day periodic advertise windows to auto-receive the new permit over BLE.
+- [ ] Cache next permit in flash; midnight redraw from cache (no BLE needed).
+- [ ] Confirm graceful failure: if the battery dies, the e-ink just holds the last image.
+
+Repo: https://github.com/VisTechProjectsOrg/parking-permit-display
