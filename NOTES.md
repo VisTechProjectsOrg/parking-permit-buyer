@@ -14,6 +14,13 @@ Two problems were addressed:
    This is a stopgap for the dumb/unpowered e-ink; the proper on-device midnight flip is
    tracked in the display repo and will retire this once it lands.
 
+### Planned: advance purchase (for the cable-free display)
+To give the battery display a multi-day window to sync the next permit over BLE, the buyer will
+buy **~2-3 days early** (configurable lead time) instead of on expiry day, with **start date =
+current permit's expiry + 1 day** (currently hardcoded to "tomorrow"). Confirmed the Toronto site
+accepts a future start date (verified 2026-06-25: bought Valid-From Jul 02 on Jun 25). Full design
+in the display repo's NOTES.md ("Set-and-forget sync design").
+
 ## Display firmware + battery work (moved)
 All the e-ink display notes — BLE-only sync, the 200mAh LiPo + deep-sleep plan, VME290 power
 gating, battery-life estimates, charging/BMS findings, and sleep-current testing — now live in
