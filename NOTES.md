@@ -103,6 +103,22 @@ board file/docs. Then: assert ADC_Ctrl -> analogRead -> divide by 0.204 -> de-as
 No dedicated VBUS-sense GPIO obvious in the schematic. Options: read the charge IC (LGS4056H)
 `CHRG`/`DONE` pins, or sample `VBAT_Read` (~4.2V + charging => on USB). Check Heltec's board file first.
 
+### Testing the sleep current (battery in hand)
+The current firmware never sleeps, so it can't be used to test battery life -- it'll draw
+~30-60mA and drain a 200mAh cell in hours. Real testing needs the minimal sleep slice flashed
+first (LoRa sleep + VExtOff + LED off + `esp_deep_sleep` with button/timer wake).
+
+Measuring:
+- Put a meter in series with the **battery** line (JP1), not USB.
+- During deep sleep, read on the **µA range** -- expect ~20-40µA if gated right.
+- During a wake (BLE sync / e-ink refresh) it spikes to tens of mA -- switch to mA range or the
+  µA fuse may trip. Those wakes are brief and don't dominate the average.
+- Better than a DMM if available: a power profiler (Nordic PPK2 / uCurrent) to see wake spikes too.
+- Sanity checks that need no special gear: confirms it charges on USB (LED1 orange), runs on
+  battery, e-ink shows the permit, button sync works on battery.
+
+Note: flashing + measuring is done on the hardware by hand; the code slice is the only part to write.
+
 ### TODO (firmware)
 - [ ] Sleep the LoRa SX1262 -- the dominant drain; do first. Port the SetSleep (0x84,0x04) routine
       from `Platforms/WirelessPaper/power_controls.cpp` to the E290 LoRa pins (NSS=8/SCK=9/MOSI=10).
