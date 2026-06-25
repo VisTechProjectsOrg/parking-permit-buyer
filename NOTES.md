@@ -94,6 +94,20 @@ eats in -- so treat the top figures as theoretical (ceiling ~a year, comfortably
 And it recharges over USB on every drive, so it only ever has to bridge days/weeks between charges.
 The cell size isn't the deciding factor -- sleeping the LoRa is.
 
+### Charging + battery protection (from schematic)
+- **Charges the LiPo: YES.** U6 **LGS4056H** is a TP4056-class single-cell charger (CC/CV +
+  termination), fed from USB `VDD_5V`. Orange LED1 = charge status. TEMP pin for a thermistor.
+  Charge current is set by the PROG resistor -- **verify it vs a small cell**: these boards are
+  often set for ~0.5-1A, but a 200mAh cell wants <=~0.5-1C (~100-200mA), so a high PROG current
+  could over-stress it. Check before relying on it.
+- **Full BMS / protection: NO dedicated IC on the board.** There's the charger + a USB/battery
+  power-path mux (Q1/Q4/Q3/D2) + input fuse (F1), but no DW01-style over-discharge / over-current
+  / short protection. That protection, if any, lives on the **battery's own little PCB** -- so use
+  a **protected** 200mAh cell, or add firmware low-voltage cutoff. Matters for months-long use:
+  with no protection, a fully drained cell can over-discharge and be damaged.
+- **Firmware safeguard:** read VBAT (the ADC below) and stop waking / show "low battery" before
+  the cell drops to ~3.0V. Cheap insurance against deep-discharge when left unplugged a long time.
+
 ### Battery read (custom -- not in the display lib)
 heltec-eink-modules has no battery read. Divider is known (0.204); it's gated by `ADC_Ctrl`/Q2.
 Missing: the GPIO numbers for `VBAT_Read` (ADC) and `ADC_Ctrl` -- pull from Heltec's own VisionMaster
@@ -132,6 +146,8 @@ Note: flashing + measuring is done on the hardware by hand; the code slice is th
 - [ ] Compute sleep duration from `validTo` (long normally; precise wake at midnight on expiry day).
 - [ ] Last-day periodic advertise windows to auto-receive the new permit over BLE.
 - [ ] Cache next permit in flash; midnight redraw from cache (no BLE needed).
+- [ ] Low-voltage cutoff: stop waking / show "low battery" before VBAT ~3.0V (no hardware BMS).
+- [ ] Verify charge current (PROG resistor) is safe for a 200mAh cell; use a protected cell.
 - [ ] Confirm graceful failure: if the battery dies, the e-ink just holds the last image.
 
 Repo: https://github.com/VisTechProjectsOrg/parking-permit-display
