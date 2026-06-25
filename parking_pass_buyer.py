@@ -180,39 +180,150 @@ def check_autobuyer_reenable():
 check_autobuyer_reenable()
 
 
-def existing_permit_covers_vehicle(vehicle_index):
-    """Return True if permit.json already shows the target vehicle has a still-valid permit.
-    Lets the daily cron exit immediately without spinning up Selenium when no buy is needed."""
-    permit_path = Path(__file__).parent / 'permit.json'
+# Hour-of-day at which, on a permit's last valid day, the display switches from the
+# expiring permit to the next (already-bought) one. Chosen so the e-ink renders the new
+# permit during the evening drive -- it can't flip itself at midnight while unpowered.
+DISPLAY_FLIP_HOUR = 16
+
+
+def _parse_permit_dt(value):
+    """Parse a permit validFrom/validTo string into a datetime, or None.
+    Handles the formats seen across permit.json/history PDFs."""
+    s = (value or '').strip()
+    for fmt in ("%b %d, %Y: %H:%M", "%b %d, %Y at %I:%M %p", "%b %d, %Y"):
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _plate_for_index(vehicle_index):
+    """Return the (upper-cased) plate for a vehicle index, or None."""
+    if vehicle_index is None:
+        return None
     cars_path = Path(__file__).parent / 'config' / 'info_cars.json'
-    if not permit_path.exists() or vehicle_index is None:
-        return False
     try:
-        with open(permit_path) as f:
-            permit_data = json.load(f)
         with open(cars_path) as f:
             cars = json.load(f)
     except Exception:
-        return False
+        return None
     if vehicle_index < 0 or vehicle_index >= len(cars):
-        return False
+        return None
+    return (cars[vehicle_index].get('plate') or '').strip().upper() or None
 
-    target_plate = (cars[vehicle_index].get('plate') or '').strip().upper()
-    permit_plate = (permit_data.get('plateNumber') or '').strip().upper()
-    if not target_plate or target_plate != permit_plate:
-        return False
 
-    valid_to = permit_data.get('validTo') or ''
-    expiry_date = None
-    for fmt in ("%b %d, %Y: %H:%M", "%b %d, %Y at %I:%M %p", "%b %d, %Y"):
-        try:
-            expiry_date = datetime.strptime(valid_to.strip(), fmt)
-            break
-        except ValueError:
+def load_vehicle_permits(plate):
+    """All known permits for a plate, gathered from permits_history.json and permit.json,
+    de-duplicated by permit number."""
+    if not plate:
+        return []
+    base = Path(__file__).parent
+    permits = {}
+    for fname in ('permits_history.json', 'permit.json'):
+        fpath = base / fname
+        if not fpath.exists():
             continue
-    if not expiry_date:
+        try:
+            with open(fpath) as f:
+                data = json.load(f)
+        except Exception:
+            continue
+        items = data if isinstance(data, list) else [data]
+        for p in items:
+            if (p.get('plateNumber') or '').strip().upper() == plate.upper():
+                permits[p.get('permitNumber')] = p
+    return list(permits.values())
+
+
+def vehicle_covered_tomorrow(vehicle_index):
+    """Return True if the target vehicle already has a permit covering tomorrow.
+
+    This is the buy trigger: a permit's last day is when tomorrow first becomes uncovered,
+    so the buy fires that day and the new permit (starting tomorrow) lines up with no gap.
+    Once the next permit is bought it covers tomorrow, so further runs stop buying. Reads
+    history (not just permit.json) so the deferred display flip can't trigger a re-buy."""
+    plate = _plate_for_index(vehicle_index)
+    if not plate:
         return False
-    return expiry_date > datetime.now()
+    tomorrow = (datetime.now() + timedelta(days=1)).date()
+    for p in load_vehicle_permits(plate):
+        vf = _parse_permit_dt(p.get('validFrom'))
+        vt = _parse_permit_dt(p.get('validTo'))
+        if vf and vt and vf.date() <= tomorrow <= vt.date():
+            return True
+    return False
+
+
+def select_display_permit(permits, now):
+    """From a plate's permits, pick the one the display should show at `now`.
+
+    Normally the currently-valid permit. But on its last valid day, from DISPLAY_FLIP_HOUR
+    onward, switch to the next (already-bought) permit so the e-ink shows what's valid
+    overnight -- it stays on whatever was rendered during the evening drive. Falls back to
+    the soonest upcoming permit, else the most recently started one (last bought)."""
+    parsed = []
+    for p in permits:
+        vf = _parse_permit_dt(p.get('validFrom'))
+        vt = _parse_permit_dt(p.get('validTo'))
+        if vf and vt:
+            parsed.append((vf, vt, p))
+    if not parsed:
+        return None
+
+    current = [t for t in parsed if t[0].date() <= now.date() <= t[1].date()]
+    if current:
+        cur_vf, cur_vt, cur_p = max(current, key=lambda t: t[0])
+        future = [t for t in parsed if t[0].date() > now.date()]
+        if future:
+            nxt = min(future, key=lambda t: t[0])
+            flip_at = datetime(cur_vt.year, cur_vt.month, cur_vt.day, DISPLAY_FLIP_HOUR, 0)
+            if now >= flip_at:
+                return nxt[2]
+        return cur_p
+
+    future = [t for t in parsed if t[0].date() > now.date()]
+    if future:
+        return min(future, key=lambda t: t[0])[2]
+    return max(parsed, key=lambda t: t[0])[2]
+
+
+def refresh_active_display(plate, no_github=False, force_push=False):
+    """Make permit.json hold the permit that should be displayed right now and push it.
+
+    Handles the expiring->new flip at DISPLAY_FLIP_HOUR on the last valid day, regardless of
+    when the buy actually ran. By default this is a no-op (no write, no push) when permit.json
+    already holds the right permit -- cheap to call on every cron run. Returns the push result
+    (True on success/no-op/skip-push, False if a GitHub push failed)."""
+    permit_path = Path(__file__).parent / 'permit.json'
+    permits = load_vehicle_permits(plate)
+    if not permits:
+        return True
+    chosen = select_display_permit(permits, datetime.now())
+    if not chosen:
+        return True
+
+    current = None
+    if permit_path.exists():
+        try:
+            with open(permit_path) as f:
+                current = json.load(f)
+        except Exception:
+            current = None
+
+    already_showing = current and current.get('permitNumber') == chosen.get('permitNumber')
+    if already_showing and not force_push:
+        return True  # display already correct and synced
+
+    if not already_showing:
+        with open(permit_path, 'w') as f:
+            json.dump(chosen, f, indent=2)
+        print(bcolors.OKCYAN + f"Display set to permit {chosen.get('permitNumber')} "
+              f"(valid {chosen.get('validFrom')} -> {chosen.get('validTo')})" + bcolors.ENDC)
+
+    if no_github:
+        return True
+    return commit_and_push_to_github(permit_path, f"Display permit {chosen.get('permitNumber')}")
 
 
 def is_notification_enabled(notification_type):
@@ -1829,12 +1940,22 @@ Examples:
     parser.add_argument('--headless', action='store_true', help='Run Chrome in headless mode (for server/cron automation)')
     parser.add_argument('--dry-run', action='store_true', help='Test run: fill forms but stop before payment (no purchase)')
     parser.add_argument('--reminder-check', action='store_true', help='Only run reminder checks (expiry + vehicle-switch) then exit. For an early-warning cron.')
+    parser.add_argument('--refresh-display', action='store_true', help='Only refresh the displayed permit (handles the last-day 4 PM flip) then exit. No Selenium. For an afternoon cron.')
 
     args = parser.parse_args()
 
     # --reminder-check: reminders already ran above, so just exit cleanly
     if args.reminder_check:
         print(bcolors.OKCYAN + "Reminder check complete. Exiting." + bcolors.ENDC)
+        sys.exit(0)
+
+    # --refresh-display: just sync permit.json to the permit that should show right now.
+    # Lets a cheap afternoon cron flip the display to the next permit at 4 PM on the last
+    # valid day, without buying anything. The device can't flip itself while unpowered.
+    if args.refresh_display:
+        plate = _plate_for_index(args.vehicle if args.vehicle is not None else resolve_default_vehicle_index())
+        refresh_active_display(plate, no_github=args.no_github)
+        print(bcolors.OKCYAN + "Display refresh complete. Exiting." + bcolors.ENDC)
         sys.exit(0)
 
     # When no --vehicle is given in headless mode, fall back to the default from settings
@@ -1846,13 +1967,16 @@ Examples:
         args.card = 0
         print(bcolors.OKCYAN + "Headless mode: using card index 0 (only card)" + bcolors.ENDC)
 
-    # Daily-cron short-circuit: skip the whole Selenium spin-up when the target vehicle
-    # already has a still-valid permit. Only kicks in for the normal headless buy flow
-    # (not for refetch, dry-run, or parse-only).
+    # Daily-cron short-circuit: keep the display current, then skip the whole Selenium
+    # spin-up when the target vehicle already has a permit covering tomorrow. Only kicks in
+    # for the normal headless buy flow (not for refetch, dry-run, or parse-only).
     if args.headless and not args.refetch and not args.parse_only and not args.dry_run:
-        if existing_permit_covers_vehicle(args.vehicle):
-            log_event(f"Active permit already covers vehicle index {args.vehicle}. Skipping buy.", "INFO")
-            print(bcolors.OKCYAN + f"Active permit already covers vehicle index {args.vehicle}. Nothing to do." + bcolors.ENDC)
+        # Flip the display to the next permit if it's past 4 PM on the last valid day, even
+        # when no buy is needed this run (e.g. the buy already happened earlier today).
+        refresh_active_display(_plate_for_index(args.vehicle), no_github=args.no_github)
+        if vehicle_covered_tomorrow(args.vehicle):
+            log_event(f"Vehicle index {args.vehicle} already covered tomorrow. Skipping buy.", "INFO")
+            print(bcolors.OKCYAN + f"Vehicle index {args.vehicle} already covered tomorrow. Nothing to buy." + bcolors.ENDC)
             sys.exit(0)
 
     # Configure headless mode if requested
@@ -2202,11 +2326,17 @@ Examples:
             json_path = Path('permit.json')
             create_permit_json(permit_data, json_path)
 
-            # Push to GitHub if not disabled
+            # Push to GitHub if not disabled. We push the permit that should be displayed
+            # *now*, not necessarily the one just bought: if the old permit is still valid
+            # and it's before 4 PM on its last day, keep showing it. The next afternoon
+            # cron run (or this run after 4 PM) flips the display to the new permit.
             github_success = True
             if not args.no_github:
                 print(bcolors.OKCYAN + "\nPushing to GitHub..." + bcolors.ENDC)
-                github_success = commit_and_push_to_github(json_path, f"Update permit to {permit_data['permit_number']}")
+            github_success = refresh_active_display(
+                (permit_data.get('plate_number') or '').strip().upper(),
+                no_github=args.no_github, force_push=True
+            )
 
             if not github_success and not args.no_github:
                 print(bcolors.WARNING + "GitHub push failed - archiving PDF anyway (display sync may be stale)" + bcolors.ENDC)
