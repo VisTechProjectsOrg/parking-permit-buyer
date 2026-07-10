@@ -22,6 +22,10 @@ accepts a future start date (verified 2026-06-25: bought Valid-From Jul 02 on Ju
 in the display repo's NOTES.md ("Set-and-forget sync design").
 
 ## TODO (web / buyer app)
+- [x] Rotated the leaked GitHub token (old token printed to the log by the buyer's push; rotated 2026-07-09).
+- [ ] Fix the buyer's token-push path: it builds a broken token URL ("Bad hostname") and rewrites the
+      display repo's `origin` to it (that's what leaked the old token). Push via the clean origin /
+      credential helper instead of embedding the token, so it can't leak or corrupt the remote.
 - [ ] Default vehicle management: **add/remove vehicles** in the settings UI (not just switch which
       is default). Edits `config/info_cars.json` (name + plate). Today vehicles are hand-edited in
       the JSON on the server; want add/remove from the web UI, with validation (plate format, no dupes).
