@@ -1648,7 +1648,7 @@ def refetch_permit(vehicle_index=None, card_index=None, headless=False):
         driver.quit()
 
 # ====== Main Automation Workflow ======
-def get_parking_pass(vehicle_index=None, card_index=None, dry_run=False, headless=False):
+def get_parking_pass(vehicle_index=None, card_index=None, dry_run=False, headless=False, start_today=False):
     url = "https://secure.toronto.ca/wes/eTPP/welcome.do"
 
     # Load data
@@ -1758,7 +1758,7 @@ def get_parking_pass(vehicle_index=None, card_index=None, dry_run=False, headles
 
         page_1_data = {
             **info_addresses,
-            "permit_start_date": (datetime.now() + timedelta(days=1)).strftime("%m/%d/%Y")
+            "permit_start_date": (datetime.now() + timedelta(days=0 if start_today else 1)).strftime("%m/%d/%Y")
         }
 
         for field, xpath in page_1_field_xpaths.items():
@@ -1939,6 +1939,8 @@ Examples:
     parser.add_argument('--refetch', action='store_true', help='Refetch existing permit (searches by plate + last 4 card digits)')
     parser.add_argument('--headless', action='store_true', help='Run Chrome in headless mode (for server/cron automation)')
     parser.add_argument('--dry-run', action='store_true', help='Test run: fill forms but stop before payment (no purchase)')
+    parser.add_argument('--start-today', action='store_true', help='Start the permit today instead of tomorrow (for past-midnight buys)')
+    parser.add_argument('--force', action='store_true', help='Buy even when the auto-buyer is disabled (explicit manual purchase, one-off)')
     parser.add_argument('--reminder-check', action='store_true', help='Only run reminder checks (expiry + vehicle-switch) then exit. For an early-warning cron.')
     parser.add_argument('--refresh-display', action='store_true', help='Only refresh the displayed permit (handles the last-day 4 PM flip) then exit. No Selenium. For an afternoon cron.')
 
@@ -1991,7 +1993,7 @@ Examples:
         print(bcolors.OKCYAN + "Running in headless mode (no browser window)" + bcolors.ENDC)
 
     # Check if autobuyer is enabled (only for purchase flow, not parse-only or refetch)
-    if not args.parse_only and not args.refetch:
+    if not args.parse_only and not args.refetch and not args.force:
         autobuyer_enabled = settings.get("autobuyer", {}).get("enabled", True)
         if not autobuyer_enabled:
             log_event("Autobuyer is disabled in settings. Exiting.", "INFO")
@@ -2194,7 +2196,8 @@ Examples:
         vehicle_index=args.vehicle,
         card_index=args.card,
         dry_run=args.dry_run,
-        headless=args.headless
+        headless=args.headless,
+        start_today=args.start_today
     )
 
     # Check for special return values first
