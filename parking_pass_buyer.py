@@ -1251,6 +1251,7 @@ def commit_and_push_to_github(file_path, commit_message, target_repo_path=None, 
         target_repo_path: Path to parking_pass_display repo (from settings.json)
         target_branch: Target branch (from settings.json)
     """
+    import re
     import subprocess
     import shutil
 
@@ -1345,21 +1346,22 @@ def commit_and_push_to_github(file_path, commit_message, target_repo_path=None, 
                                                  capture_output=True, text=True, check=True)
                     remote_url = remote_result.stdout.strip()
 
-                    # Convert to token-authenticated URL
-                    if 'github.com' in remote_url:
-                        if remote_url.startswith('https://'):
-                            # Already HTTPS, add token
-                            auth_url = remote_url.replace('https://', f'https://{github_token}@')
-                        elif remote_url.startswith('git@'):
-                            # Convert SSH to HTTPS with token
-                            auth_url = remote_url.replace('git@github.com:', f'https://{github_token}@github.com/')
-                            auth_url = auth_url.replace('.git', '')
+                    # Strip credentials a previous run may have left in the stored URL
+                    clean_url = re.sub(r'https://(?:[^@/]+@)+', 'https://', remote_url)
+                    if clean_url != remote_url:
+                        subprocess.run(['git', 'remote', 'set-url', 'origin', clean_url], check=True, capture_output=True, text=True)
 
-                        # Temporarily set remote URL with token
-                        subprocess.run(['git', 'remote', 'set-url', 'origin', auth_url], check=True, capture_output=True, text=True)
-                        subprocess.run(['git', 'push'], check=True, capture_output=True, text=True)
-                        # Restore original URL
-                        subprocess.run(['git', 'remote', 'set-url', 'origin', remote_url], check=True, capture_output=True, text=True)
+                    # Convert to token-authenticated URL
+                    if 'github.com' in clean_url:
+                        if clean_url.startswith('https://'):
+                            # Already HTTPS, add token
+                            auth_url = clean_url.replace('https://', f'https://{github_token}@')
+                        elif clean_url.startswith('git@'):
+                            # Convert SSH to HTTPS with token
+                            auth_url = clean_url.replace('git@github.com:', f'https://{github_token}@github.com/')
+
+                        # Push straight to the token URL - never store it in the remote config
+                        subprocess.run(['git', 'push', auth_url, target_branch], check=True, capture_output=True, text=True)
                     else:
                         # Not a GitHub URL, push normally
                         subprocess.run(['git', 'push'], check=True, capture_output=True, text=True)
@@ -1391,12 +1393,16 @@ def commit_and_push_to_github(file_path, commit_message, target_repo_path=None, 
             error_msg += f"\nstderr: {e.stderr}"
         if e.stdout:
             error_msg += f"\nstdout: {e.stdout}"
+        if github_token:
+            error_msg = error_msg.replace(github_token, '***')
         print(bcolors.FAIL + error_msg + bcolors.ENDC)
         log_event(error_msg, "ERROR")
         os.chdir(original_dir)
         return False
     except Exception as e:
         error_msg = f"GitHub push error: {e}"
+        if github_token:
+            error_msg = error_msg.replace(github_token, '***')
         print(bcolors.FAIL + error_msg + bcolors.ENDC)
         log_event(error_msg, "ERROR")
         return False
