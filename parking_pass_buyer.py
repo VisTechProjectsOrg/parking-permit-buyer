@@ -326,6 +326,57 @@ def refresh_active_display(plate, no_github=False, force_push=False):
     return commit_and_push_to_github(permit_path, f"Display permit {chosen.get('permitNumber')}")
 
 
+def sync_permit_to_server():
+    """Push permit.json and the new history entry to the web server so the dashboard
+    reflects buys made from this machine. The autobuyer on the server writes these
+    files directly, so this only matters for local/manual runs. Controlled by the
+    server_sync block in settings.json (absent on the server, which disables it)."""
+    import subprocess
+
+    sync = settings.get('server_sync') or {}
+    if not sync.get('enabled'):
+        return True
+
+    plink = sync.get('plink', r'C:\Program Files\PuTTY\plink.exe')
+    pscp = sync.get('pscp', r'C:\Program Files\PuTTY\pscp.exe')
+    target = f"{sync['user']}@{sync['host']}"
+    remote_base = sync['remote_base']
+    ssh_args = ['-batch', '-P', str(sync['port']), '-i', sync['key_ppk']]
+
+    print(bcolors.OKCYAN + "\nSyncing permit to web server..." + bcolors.ENDC)
+    try:
+        subprocess.run([pscp, *ssh_args, 'permit.json', f"{target}:{remote_base}/permit.json"],
+                       capture_output=True, text=True, check=True, timeout=60)
+
+        # Append the permit to the server's history (dedupe by permit number).
+        # Never overwrite the server's permits_history.json wholesale: the server
+        # copy is the full record and local copies may be partial.
+        append_script = (
+            "import json\n"
+            f"base = {remote_base!r}\n"
+            "permit = json.load(open(base + '/permit.json'))\n"
+            "path = base + '/permits_history.json'\n"
+            "hist = json.load(open(path))\n"
+            "if not any(p.get('permitNumber') == permit['permitNumber'] for p in hist):\n"
+            "    hist.append(permit)\n"
+            "    json.dump(hist, open(path, 'w'), indent=2)\n"
+        )
+        owner = sync.get('owner', 'admin:admin')
+        remote_cmd = (f"python3 - && chown {owner} {remote_base}/permit.json"
+                      f" {remote_base}/permits_history.json")
+        subprocess.run([plink, *ssh_args, target, remote_cmd],
+                       input=append_script, capture_output=True, text=True, check=True, timeout=60)
+
+        print(bcolors.OKGREEN + "Synced permit.json and history to web server" + bcolors.ENDC)
+        log_event("Synced permit to web server", "SUCCESS")
+        return True
+    except Exception as e:
+        detail = (getattr(e, 'stderr', '') or '').strip() or str(e)
+        print(bcolors.WARNING + f"Server sync failed (site may show stale data): {detail}" + bcolors.ENDC)
+        log_event(f"Server sync failed: {detail}", "ERROR")
+        return False
+
+
 def is_notification_enabled(notification_type):
     """Check if a notification type is enabled in settings."""
     return settings.get('notifications', {}).get(notification_type, True)
@@ -2048,6 +2099,7 @@ Examples:
             # Always archive the PDF so it isn't stranded; GitHub push is just a sync side-effect
             if not github_success and not args.no_github:
                 print(bcolors.WARNING + "GitHub push failed - archiving PDF anyway (display sync may be stale)" + bcolors.ENDC)
+            sync_permit_to_server()
             archive_pdf(pdf_path, permit_data.get('permit_number'))
         else:
             print(bcolors.FAIL + "\nMissing permit data - JSON not created" + bcolors.ENDC)
@@ -2118,6 +2170,7 @@ Examples:
 
                 if not github_success and not args.no_github:
                     print(bcolors.WARNING + "GitHub push failed - archiving PDF anyway (display sync may be stale)" + bcolors.ENDC)
+                sync_permit_to_server()
                 archive_pdf(pdf_path, permit_data.get('permit_number'))
 
                 print(bcolors.OKGREEN + bcolors.UNDERLINE + "\n\nDone (refetch)" + bcolors.ENDC)
@@ -2183,6 +2236,7 @@ Examples:
 
                             if not github_success and not args.no_github:
                                 print(bcolors.WARNING + "GitHub push failed - archiving PDF anyway (display sync may be stale)" + bcolors.ENDC)
+                            sync_permit_to_server()
                             archive_pdf(pdf_path, permit_data.get('permit_number'))
 
                             print(bcolors.OKGREEN + bcolors.UNDERLINE + "\n\nDone (refetch)" + bcolors.ENDC)
@@ -2349,6 +2403,7 @@ Examples:
 
             if not github_success and not args.no_github:
                 print(bcolors.WARNING + "GitHub push failed - archiving PDF anyway (display sync may be stale)" + bcolors.ENDC)
+            server_sync_success = sync_permit_to_server()
             archive_pdf(pdf_path, permit_data.get('permit_number'))
 
             print(bcolors.OKGREEN + bcolors.UNDERLINE + "\n\nDone" + bcolors.ENDC)
@@ -2370,6 +2425,7 @@ Valid From: {permit_data['valid_from']}
 Valid To: {permit_data['valid_to']}
 
 GitHub Push: {'Success' if github_success else 'Failed'}
+Website Sync: {'Success' if server_sync_success else 'Failed'}
 """,
                     html_body=build_success_email_html(
                         vehicle_name, vehicle_plate, permit_data,
