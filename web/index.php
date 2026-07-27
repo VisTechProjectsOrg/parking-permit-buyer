@@ -207,6 +207,45 @@ if ($isHistorical) {
 // Get amount paid
 $amountPaid = $permit['amountPaid'] ?? null;
 
+// Other permits that are still relevant (active or upcoming) besides the displayed one,
+// e.g. an old vehicle's permit on its last day while the new vehicle's is upcoming.
+$otherPermits = [];
+if (!$requestedPermit && $permit && file_exists($historyFile)) {
+    $history = json_decode(file_get_contents($historyFile), true) ?: [];
+    $now = new DateTime();
+    $today = new DateTime('today');
+    $seen = [$permit['permitNumber'] ?? null];
+    foreach (array_reverse($history) as $p) {
+        $num = $p['permitNumber'] ?? null;
+        if (!$num || in_array($num, $seen, true)) continue;
+        $vf = parsePermitDt($p['validFrom'] ?? '');
+        $vt = parsePermitDt($p['validTo'] ?? '');
+        if (!$vf || !$vt) continue;
+        $vt->setTime(23, 59, 59);
+        if ($now > $vt) continue;
+        $seen[] = $num;
+        $vf->setTime(0, 0, 0);
+        if ($now < $vf) {
+            $status = ['text' => 'Upcoming', 'color' => '#2196f3'];
+        } else {
+            $expiryDay = new DateTime($vt->format('Y-m-d'));
+            $diff = $today->diff($expiryDay);
+            $days = $diff->invert ? -1 : $diff->days;
+            if ($days == 0) $status = ['text' => 'Expires Today', 'color' => '#f44336'];
+            elseif ($days == 1) $status = ['text' => 'Expires Tomorrow', 'color' => '#ff9800'];
+            else $status = ['text' => $days . ' days left', 'color' => '#4caf50'];
+        }
+        $name = null;
+        foreach ($cars as $car) {
+            if (strtoupper($car['plate']) === strtoupper($p['plateNumber'] ?? '')) {
+                $name = $car['name'];
+                break;
+            }
+        }
+        $otherPermits[] = ['permit' => $p, 'name' => $name, 'status' => $status];
+    }
+}
+
 // Helper function to check if permit is a weekly permit (approximately 7 days)
 function isWeeklyPermit($p) {
     $from = $p['validFrom'] ?? '';
@@ -356,6 +395,38 @@ if ($permit && !$isHistorical && file_exists($historyFile) && isWeeklyPermit($pe
             text-align: center;
             color: #8892a6;
             padding: 40px;
+        }
+        .other-permits { margin-top: 14px; }
+        .other-permits-title {
+            color: #8892a6;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        .other-permit {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #1e2433;
+            border-radius: 10px;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+            text-decoration: none;
+            color: #e2e8f0;
+            font-size: 14px;
+        }
+        .other-permit:last-child { margin-bottom: 0; }
+        .other-permit:hover { background: #232a3c; }
+        .other-permit-plate { color: #8892a6; font-size: 12px; }
+        .other-permit-status {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+            white-space: nowrap;
+            flex-shrink: 0;
         }
         .links {
             display: flex;
@@ -528,6 +599,22 @@ if ($permit && !$isHistorical && file_exists($historyFile) && isWeeklyPermit($pe
             <div class="days-remaining">
                 <div class="days-text"><?= $expiresText ?></div>
             </div>
+            <?php if ($otherPermits): ?>
+            <div class="other-permits">
+                <div class="other-permits-title">Other permits</div>
+                <?php foreach ($otherPermits as $op): ?>
+                <a class="other-permit" href="<?= $urlBase ?>/?permit=<?= urlencode($op['permit']['permitNumber']) ?>">
+                    <span>
+                        <?= htmlspecialchars($op['name'] ?? $op['permit']['plateNumber'] ?? 'Unknown') ?>
+                        <?php if ($op['name'] && !empty($op['permit']['plateNumber'])): ?>
+                            <span class="other-permit-plate">(<?= htmlspecialchars($op['permit']['plateNumber']) ?>)</span>
+                        <?php endif; ?>
+                    </span>
+                    <span class="other-permit-status" style="background: <?= $op['status']['color'] ?>"><?= $op['status']['text'] ?></span>
+                </a>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
             <div class="links">
                 <?php if ($isHistorical): ?>
                     <a href="<?= $urlBase ?>/" class="link">View Current</a>
