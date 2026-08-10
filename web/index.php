@@ -637,5 +637,19 @@ if ($permit && !$isHistorical && file_exists($historyFile) && isWeeklyPermit($pe
     <?php include __DIR__ . '/_partials/bottom_nav.php'; ?>
     <?php include __DIR__ . '/_partials/version_banner.php'; ?>
     <?php include __DIR__ . '/_partials/console_easter_egg.php'; ?>
+    <script>
+        // Keep the page fresh: reload when returning to a stale tab, and every 5 min while open
+        (function() {
+            var MAX_AGE_MS = 5 * 60 * 1000;
+            var loadedAt = Date.now();
+            function reloadIfStale() {
+                if (!document.hidden && Date.now() - loadedAt > MAX_AGE_MS) {
+                    location.reload();
+                }
+            }
+            document.addEventListener('visibilitychange', reloadIfStale);
+            setInterval(reloadIfStale, 60 * 1000);
+        })();
+    </script>
 </body>
 </html>
