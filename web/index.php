@@ -1,6 +1,10 @@
 <?php
 require_once __DIR__ . '/config.php';
 
+// Hour at which, on a permit's last valid day, the display flips to the next permit.
+// Keep in sync with DISPLAY_FLIP_HOUR in parking_pass_buyer.py.
+const DISPLAY_FLIP_HOUR = 16;
+
 // Load settings for autobuyer status
 $settings = [];
 if (file_exists($settingsFile)) {
@@ -65,10 +69,6 @@ if ($permit && isset($permit['plateNumber'])) {
         }
     }
 }
-
-// Hour at which, on a permit's last valid day, the display flips to the next permit.
-// Keep in sync with DISPLAY_FLIP_HOUR in parking_pass_buyer.py.
-const DISPLAY_FLIP_HOUR = 16;
 
 function parsePermitDt($value) {
     $s = trim($value ?? '');
