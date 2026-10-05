@@ -63,7 +63,7 @@ $_branch = $_ver['branch'];
     document.body.dataset.versionBranch = '<?= htmlspecialchars($_branch, ENT_QUOTES) ?>';
     document.body.dataset.urlBase = '<?= htmlspecialchars($urlBase, ENT_QUOTES) ?>';
     console.log(
-        '%c Parking %c <?= htmlspecialchars($_commit, ENT_QUOTES) ?> %c <?= htmlspecialchars($_branch, ENT_QUOTES) ?> ',
+        '%c parking-permit-buyer %c <?= htmlspecialchars($_commit, ENT_QUOTES) ?> %c <?= htmlspecialchars($_branch, ENT_QUOTES) ?> ',
         'background:#10b981; color:white; padding:2px 6px; border-radius:3px 0 0 3px;',
         'background:#6b7280; color:white; padding:2px 6px;',
         'background:<?= $_branch === 'dev' ? '#f97316' : ($_branch === 'staging' ? '#3b82f6' : '#8b5cf6') ?>; color:white; padding:2px 6px; border-radius:0 3px 3px 0;'
