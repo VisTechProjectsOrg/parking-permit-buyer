@@ -88,7 +88,16 @@ function sendSettingsEmail($to, $from, $password, $subject, $body) {
 
     stream_set_timeout($socket, 10);
 
-    $response = fgets($socket, 512);
+    // A reply can span several lines ("250-..." then "250 ..."); the server here greets with
+    // three. Read to the last line so the replies stay in step with the commands.
+    $read = function () use ($socket) {
+        do {
+            $line = fgets($socket, 512);
+        } while ($line !== false && strlen($line) > 3 && $line[3] === '-');
+        return $line;
+    };
+
+    $response = $read();
     if (substr($response, 0, 3) != '220') { fclose($socket); return false; }
 
     // EHLO
@@ -100,7 +109,7 @@ function sendSettingsEmail($to, $from, $password, $subject, $body) {
     if (!$local) {
     // STARTTLS
     fputs($socket, "STARTTLS\r\n");
-    $response = fgets($socket, 512);
+    $response = $read();
     if (substr($response, 0, 3) != '220') { fclose($socket); return false; }
 
     // Enable TLS
@@ -114,35 +123,35 @@ function sendSettingsEmail($to, $from, $password, $subject, $body) {
 
     // AUTH LOGIN
     fputs($socket, "AUTH LOGIN\r\n");
-    $response = fgets($socket, 512);
+    $response = $read();
     if (substr($response, 0, 3) != '334') { fclose($socket); return false; }
 
     fputs($socket, base64_encode($from) . "\r\n");
-    $response = fgets($socket, 512);
+    $response = $read();
     if (substr($response, 0, 3) != '334') { fclose($socket); return false; }
 
     fputs($socket, base64_encode($password) . "\r\n");
-    $response = fgets($socket, 512);
+    $response = $read();
     if (substr($response, 0, 3) != '235') { fclose($socket); return false; }
     }
 
     // MAIL FROM
     fputs($socket, "MAIL FROM:<$from>\r\n");
-    $response = fgets($socket, 512);
+    $response = $read();
     if (substr($response, 0, 3) != '250') { fclose($socket); return false; }
 
     // RCPT TO
     fputs($socket, "RCPT TO:<$to>\r\n");
-    $response = fgets($socket, 512);
+    $response = $read();
     if (substr($response, 0, 3) != '250') { fclose($socket); return false; }
 
     // DATA
     fputs($socket, "DATA\r\n");
-    $response = fgets($socket, 512);
+    $response = $read();
     if (substr($response, 0, 3) != '354') { fclose($socket); return false; }
 
     fputs($socket, $message . "\r\n.\r\n");
-    $response = fgets($socket, 512);
+    $response = $read();
     if (substr($response, 0, 3) != '250') { fclose($socket); return false; }
 
     // QUIT
