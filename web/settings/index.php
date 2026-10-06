@@ -90,6 +90,10 @@ function sendSettingsEmail($to, $from, $password, $subject, $body) {
 
     // A reply can span several lines ("250-..." then "250 ..."); the server here greets with
     // three. Read to the last line so the replies stay in step with the commands.
+    // Mail servers reject a bare "localhost" greeting: introduce ourselves by full host name.
+    $helo = gethostname() ?: 'localhost';
+    if (strpos($helo, '.') === false) $helo .= '.localdomain';
+
     $read = function () use ($socket) {
         do {
             $line = fgets($socket, 512);
@@ -101,7 +105,7 @@ function sendSettingsEmail($to, $from, $password, $subject, $body) {
     if (substr($response, 0, 3) != '220') { fclose($socket); return false; }
 
     // EHLO
-    fputs($socket, "EHLO localhost\r\n");
+    fputs($socket, "EHLO $helo\r\n");
     while ($line = fgets($socket, 512)) {
         if (substr($line, 3, 1) == ' ') break;
     }
@@ -116,7 +120,7 @@ function sendSettingsEmail($to, $from, $password, $subject, $body) {
     stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
 
     // EHLO again after TLS
-    fputs($socket, "EHLO localhost\r\n");
+    fputs($socket, "EHLO $helo\r\n");
     while ($line = fgets($socket, 512)) {
         if (substr($line, 3, 1) == ' ') break;
     }
