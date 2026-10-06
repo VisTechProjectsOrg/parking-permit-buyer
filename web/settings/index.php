@@ -63,9 +63,10 @@ if (file_exists($envFile)) {
 }
 
 function sendSettingsEmail($to, $from, $password, $subject, $body) {
-    // Use Gmail SMTP directly for reliable delivery
-    $smtpServer = 'smtp.gmail.com';
-    $smtpPort = 587;
+    // With an app password: Gmail. Without one: the mail system on this server, no login.
+    $local = empty($password);
+    $smtpServer = $local ? 'localhost' : 'smtp.gmail.com';
+    $smtpPort = $local ? 25 : 587;
 
     // Create email with headers
     $boundary = md5(time());
@@ -96,6 +97,7 @@ function sendSettingsEmail($to, $from, $password, $subject, $body) {
         if (substr($line, 3, 1) == ' ') break;
     }
 
+    if (!$local) {
     // STARTTLS
     fputs($socket, "STARTTLS\r\n");
     $response = fgets($socket, 512);
@@ -122,6 +124,7 @@ function sendSettingsEmail($to, $from, $password, $subject, $body) {
     fputs($socket, base64_encode($password) . "\r\n");
     $response = fgets($socket, 512);
     if (substr($response, 0, 3) != '235') { fclose($socket); return false; }
+    }
 
     // MAIL FROM
     fputs($socket, "MAIL FROM:<$from>\r\n");

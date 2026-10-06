@@ -82,7 +82,7 @@ github_token = os.getenv("GITHUB_TOKEN")
 email_from = os.getenv("EMAIL_FROM")
 email_to = os.getenv("EMAIL_TO")
 email_app_password = os.getenv("EMAIL_APP_PASSWORD")
-email_enabled = all([email_from, email_to, email_app_password])
+email_enabled = all([email_from, email_to])  # the app password is optional: without it mail goes through this machine
 
 missing = []
 
@@ -443,8 +443,11 @@ def take_error_screenshot(driver, error_name="error"):
 
 # ====== Email Notification ======
 def send_email_notification(subject, body, is_error=False, html_body=None, screenshot_path=None):
-    """Send email notification via Gmail SMTP. Attaches log file and screenshot for errors."""
-    if not email_enabled or not email_from or not email_to or not email_app_password:
+    """Send email notification. Attaches log file and screenshot for errors.
+
+    With EMAIL_APP_PASSWORD set it goes through Gmail; without it, through the mail
+    system on this machine with no login."""
+    if not email_enabled or not email_from or not email_to:
         return False
 
     import smtplib
@@ -487,9 +490,13 @@ def send_email_notification(subject, body, is_error=False, html_body=None, scree
             part.add_header('Content-Disposition', f'attachment; filename="{Path(screenshot_path).name}"')
             msg.attach(part)
 
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-            server.login(email_from, email_app_password)
-            server.send_message(msg)
+        if email_app_password:
+            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+                server.login(email_from, email_app_password)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP('localhost', 25) as server:
+                server.send_message(msg)
 
         log_event(f"Email notification sent: {subject}", "SUCCESS")
         return True
