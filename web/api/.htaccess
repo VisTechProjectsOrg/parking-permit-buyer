@@ -1,6 +1,6 @@
 # Clean URLs: /api/permit serves permit.php (the .php URL keeps working for older app builds)
 RewriteEngine On
-RewriteOptions Inherit
+RewriteOptions InheritBefore
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME}.php -f
 RewriteRule ^([a-z_]+)$ $1.php [L]
