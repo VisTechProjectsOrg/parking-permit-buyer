@@ -15,7 +15,7 @@ Also, the City of Toronto won't let me buy a yearly permit, requires the permit 
 - **Buy new permits** - Fully automated: fills forms, submits payment, downloads PDF
 - **Refetch existing permits** - Search by plate + card, download PDF
 - **PDF parsing** - Extracts permit data (number, dates, barcode)
-- **GitHub sync** - Pushes permit.json to separate repo for ESP32 display
+- **Display feed** - Serves the current permit at `/api/permit.php`; the Android app syncs it to the ESP32 display
 - **Interactive or CLI mode** - Run with prompts or fully automated with flags
 
 ## Quick Start
@@ -43,7 +43,6 @@ Also, the City of Toronto won't let me buy a yearly permit, requires the permit 
 - Python 3.8 or higher
 - Google Chrome browser
 - ChromeDriver (managed automatically by `webdriver_manager`)
-- GitHub token (required for pushing permit.json)
 
 ## File Structure
 ```
@@ -121,9 +120,6 @@ python parking_pass_buyer.py --vehicle 1 --card 0
 # Refetch existing permit
 python parking_pass_buyer.py --refetch --vehicle 1 --card 0
 
-# Skip GitHub push
-python parking_pass_buyer.py --vehicle 1 --card 0 --no-github
-
 # Parse existing PDF only (no browser)
 python parking_pass_buyer.py --parse-only
 ```
@@ -134,7 +130,6 @@ python parking_pass_buyer.py --parse-only
 | `--vehicle N` | Vehicle index (0-based) |
 | `--card N` | Payment card index (0-based) |
 | `--refetch` | Refetch existing permit instead of buying new |
-| `--no-github` | Skip GitHub push |
 | `--parse-only` | Only parse existing PDF, no browser |
 | `--pdf PATH` | Specific PDF to parse (with --parse-only) |
 

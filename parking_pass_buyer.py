@@ -76,33 +76,17 @@ chrome_options.add_experimental_option("prefs", {
 })
 
 # ====== Environment Variables ======
-github_token = os.getenv("GITHUB_TOKEN")
-
 # Email settings (optional)
 email_from = os.getenv("EMAIL_FROM")
 email_to = os.getenv("EMAIL_TO")
 email_app_password = os.getenv("EMAIL_APP_PASSWORD")
 email_enabled = all([email_from, email_to])  # the app password is optional: without it mail goes through this machine
 
-missing = []
-
-if not github_token:
-    missing.append("GITHUB_TOKEN")
-
-if missing:
-    print(bcolors.FAIL + f"\nERROR: Missing required environment variables: {', '.join(missing)}" + bcolors.ENDC)
-    print(bcolors.FAIL + "Please set them and run again." + bcolors.ENDC)
-    sys.exit(1)
-
 # ====== Load Settings ======
 def load_settings():
     """Load settings from config/settings.json with defaults."""
     settings_path = Path(__file__).parent / 'config' / 'settings.json'
     defaults = {
-        "github": {
-            "display_repo_path": "../parking_pass_display",
-            "permit_branch": "permit"
-        },
         "notifications": {
             "purchase_success": True,
             "purchase_failed": True,
@@ -288,20 +272,20 @@ def select_display_permit(permits, now):
     return max(parsed, key=lambda t: t[0])[2]
 
 
-def refresh_active_display(plate, no_github=False, force_push=False):
-    """Make permit.json hold the permit that should be displayed right now and push it.
+def refresh_active_display(plate):
+    """Make permit.json hold the permit that should be displayed right now.
 
     Handles the expiring->new flip at DISPLAY_FLIP_HOUR on the last valid day, regardless of
-    when the buy actually ran. By default this is a no-op (no write, no push) when permit.json
-    already holds the right permit -- cheap to call on every cron run. Returns the push result
-    (True on success/no-op/skip-push, False if a GitHub push failed)."""
+    when the buy actually ran. No-op when permit.json already holds the right permit -- cheap
+    to call on every cron run. The site's /api/permit.php applies the same flip live, so the
+    app gets the right permit even between runs."""
     permit_path = Path(__file__).parent / 'permit.json'
     permits = load_vehicle_permits(plate)
     if not permits:
-        return True
+        return
     chosen = select_display_permit(permits, datetime.now())
     if not chosen:
-        return True
+        return
 
     current = None
     if permit_path.exists():
@@ -311,19 +295,13 @@ def refresh_active_display(plate, no_github=False, force_push=False):
         except Exception:
             current = None
 
-    already_showing = current and current.get('permitNumber') == chosen.get('permitNumber')
-    if already_showing and not force_push:
-        return True  # display already correct and synced
+    if current and current.get('permitNumber') == chosen.get('permitNumber'):
+        return  # already correct
 
-    if not already_showing:
-        with open(permit_path, 'w') as f:
-            json.dump(chosen, f, indent=2)
-        print(bcolors.OKCYAN + f"Display set to permit {chosen.get('permitNumber')} "
-              f"(valid {chosen.get('validFrom')} -> {chosen.get('validTo')})" + bcolors.ENDC)
-
-    if no_github:
-        return True
-    return commit_and_push_to_github(permit_path, f"Display permit {chosen.get('permitNumber')}")
+    with open(permit_path, 'w') as f:
+        json.dump(chosen, f, indent=2)
+    print(bcolors.OKCYAN + f"Display set to permit {chosen.get('permitNumber')} "
+          f"(valid {chosen.get('validFrom')} -> {chosen.get('validTo')})" + bcolors.ENDC)
 
 
 def sync_permit_to_server():
@@ -795,10 +773,8 @@ def check_and_send_vehicle_switch_reminder():
         log_event(f"Sent vehicle switch reminder: current {current_name} -> default {default_name}", "SUCCESS")
 
 
-def build_success_email_html(vehicle_name, vehicle_plate, permit_data, github_success, price_change_info=None):
+def build_success_email_html(vehicle_name, vehicle_plate, permit_data, price_change_info=None):
     """Build a mobile-friendly HTML email for successful permit purchase (Outlook compatible)."""
-    github_badge_bg = '#e8f5e9' if github_success else '#fff3e0'
-    github_badge_color = '#2e7d32' if github_success else '#e65100'
 
     # Build price change warning HTML if applicable
     price_warning_html = ""
@@ -883,24 +859,6 @@ def build_success_email_html(vehicle_name, vehicle_plate, permit_data, github_su
                                 <tr>
                                     <td style="padding: 12px 0; color: #666666; font-size: 14px; border-bottom: 1px solid #eeeeee;">Valid To</td>
                                     <td style="padding: 12px 0; color: #1a1a1a; font-weight: 500; font-size: 14px; border-bottom: 1px solid #eeeeee;">{permit_data['valid_to']}</td>
-                                </tr>
-                            </table>
-                            <!-- Status Badge -->
-                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top: 20px;">
-                                <tr>
-                                    <td>
-                                        <!--[if mso]>
-                                        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" style="height:28px;v-text-anchor:middle;width:130px;" arcsize="50%" fillcolor="{github_badge_bg}" stroke="f">
-                                        <w:anchorlock/>
-                                        <center style="color:{github_badge_color};font-family:Arial,sans-serif;font-size:12px;font-weight:500;">GitHub: {'Pushed' if github_success else 'Failed'}</center>
-                                        </v:roundrect>
-                                        <![endif]-->
-                                        <!--[if !mso]><!-->
-                                        <span style="display:inline-block;padding: 6px 12px; background-color: {github_badge_bg}; color: {github_badge_color}; font-size: 12px; font-weight: 500; border-radius: 20px;">
-                                            GitHub: {'Pushed' if github_success else 'Failed'}
-                                        </span>
-                                        <!--<![endif]-->
-                                    </td>
                                 </tr>
                             </table>{price_warning_html}
                             <!-- Reminder -->
@@ -1298,172 +1256,6 @@ def archive_pdf(pdf_path, permit_number=None):
     print(bcolors.OKCYAN + f"Archived PDF to: {archived_path}" + bcolors.ENDC)
 
     return archived_path
-
-def commit_and_push_to_github(file_path, commit_message, target_repo_path=None, target_branch=None):
-    """
-    Commit and push permit.json to the parking_pass_display repo.
-
-    Args:
-        file_path: Path to permit.json
-        commit_message: Commit message
-        target_repo_path: Path to parking_pass_display repo (from settings.json)
-        target_branch: Target branch (from settings.json)
-    """
-    import re
-    import subprocess
-    import shutil
-
-    # Use settings if not specified
-    if target_repo_path is None:
-        current_dir = Path(__file__).parent
-        target_repo_path = current_dir / settings["github"]["display_repo_path"]
-
-    if target_branch is None:
-        target_branch = settings["github"]["permit_branch"]
-
-    target_repo_path = Path(target_repo_path)
-    original_dir = os.getcwd()
-
-    # Convert file_path to absolute path BEFORE changing directories
-    file_path = Path(file_path).resolve()
-
-    try:
-        # Check if target repo exists
-        if not target_repo_path.exists():
-            print(bcolors.FAIL + f"Target repo not found: {target_repo_path}" + bcolors.ENDC)
-            print(bcolors.WARNING + "Please set the correct path to parking_pass_display repo" + bcolors.ENDC)
-            return False
-
-        # Change to target repo directory FIRST
-        os.chdir(target_repo_path)
-
-        try:
-            # Check current branch
-            result = subprocess.run(['git', 'branch', '--show-current'],
-                                  capture_output=True, text=True, check=True)
-            current_branch = result.stdout.strip()
-
-            # Checkout target branch if not already on it
-            if current_branch != target_branch:
-                print(bcolors.OKCYAN + f"Switching to '{target_branch}' branch..." + bcolors.ENDC)
-
-                # Stash any uncommitted changes to avoid conflicts
-                stash_result = subprocess.run(['git', 'stash', 'push', '-u', '-m', 'Auto-stash before permit update'],
-                                            capture_output=True, text=True, check=False)
-                stashed = 'No local changes to save' not in stash_result.stdout
-
-                # Checkout the permit branch
-                subprocess.run(['git', 'checkout', target_branch], check=True)
-
-                # Give git a moment to release file handles after checkout
-                time.sleep(0.5)
-            else:
-                stashed = False
-
-            # NOW copy permit.json AFTER switching branches (with retry for file locks)
-            target_file = target_repo_path / 'permit.json'
-
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    # Read source file
-                    with open(file_path, 'r') as src:
-                        content = src.read()
-
-                    # Write to destination (this seems to work better than shutil.copy2 on Windows)
-                    with open(target_file, 'w') as dst:
-                        dst.write(content)
-
-                    print(bcolors.OKGREEN + f"Copied permit.json to {target_repo_path}" + bcolors.ENDC)
-                    break
-                except (PermissionError, IOError) as e:
-                    if attempt < max_retries - 1:
-                        print(bcolors.WARNING + f"File locked, retrying in 1 second... (attempt {attempt + 1}/{max_retries})" + bcolors.ENDC)
-                        time.sleep(1)
-                    else:
-                        raise  # Re-raise if all retries failed
-
-            # Add the file
-            subprocess.run(['git', 'add', 'permit.json'], check=True)
-
-            # Check if there are STAGED changes to commit (not just untracked files)
-            diff_result = subprocess.run(['git', 'diff', '--cached', '--name-only'],
-                                        capture_output=True, text=True, check=True)
-
-            if not diff_result.stdout.strip():
-                print(bcolors.OKCYAN + "permit.json is already up-to-date in parking_pass_display/permit branch" + bcolors.ENDC)
-                return True  # Success - no changes needed
-            else:
-                # Commit
-                subprocess.run(['git', 'commit', '-m', commit_message], check=True)
-
-                # Push (use GitHub token if available for authentication)
-                if github_token:
-                    # Get current remote URL
-                    remote_result = subprocess.run(['git', 'remote', 'get-url', 'origin'],
-                                                 capture_output=True, text=True, check=True)
-                    remote_url = remote_result.stdout.strip()
-
-                    # Strip credentials a previous run may have left in the stored URL
-                    clean_url = re.sub(r'https://(?:[^@/]+@)+', 'https://', remote_url)
-                    if clean_url != remote_url:
-                        subprocess.run(['git', 'remote', 'set-url', 'origin', clean_url], check=True, capture_output=True, text=True)
-
-                    # Convert to token-authenticated URL
-                    if 'github.com' in clean_url:
-                        if clean_url.startswith('https://'):
-                            # Already HTTPS, add token
-                            auth_url = clean_url.replace('https://', f'https://{github_token}@')
-                        elif clean_url.startswith('git@'):
-                            # Convert SSH to HTTPS with token
-                            auth_url = clean_url.replace('git@github.com:', f'https://{github_token}@github.com/')
-
-                        # Push straight to the token URL - never store it in the remote config
-                        subprocess.run(['git', 'push', auth_url, target_branch], check=True, capture_output=True, text=True)
-                    else:
-                        # Not a GitHub URL, push normally
-                        subprocess.run(['git', 'push'], check=True, capture_output=True, text=True)
-                else:
-                    # No token, use default git credentials
-                    subprocess.run(['git', 'push'], check=True, capture_output=True, text=True)
-
-                print(bcolors.OKGREEN + f"Pushed to GitHub (parking_pass_display/{target_branch}): {commit_message}" + bcolors.ENDC)
-                log_event(f"Successfully pushed permit update: {commit_message}", "SUCCESS")
-
-            # Switch back to original branch if we changed
-            if current_branch and current_branch != target_branch:
-                subprocess.run(['git', 'checkout', current_branch], check=False)
-
-                # Restore stashed changes if we stashed anything
-                if stashed:
-                    print(bcolors.OKCYAN + "Restoring stashed changes..." + bcolors.ENDC)
-                    subprocess.run(['git', 'stash', 'pop'], check=False)
-
-            return True
-
-        finally:
-            # Always return to original directory
-            os.chdir(original_dir)
-
-    except subprocess.CalledProcessError as e:
-        error_msg = f"Git operation failed: {e}"
-        if e.stderr:
-            error_msg += f"\nstderr: {e.stderr}"
-        if e.stdout:
-            error_msg += f"\nstdout: {e.stdout}"
-        if github_token:
-            error_msg = error_msg.replace(github_token, '***')
-        print(bcolors.FAIL + error_msg + bcolors.ENDC)
-        log_event(error_msg, "ERROR")
-        os.chdir(original_dir)
-        return False
-    except Exception as e:
-        error_msg = f"GitHub push error: {e}"
-        if github_token:
-            error_msg = error_msg.replace(github_token, '***')
-        print(bcolors.FAIL + error_msg + bcolors.ENDC)
-        log_event(error_msg, "ERROR")
-        return False
 
 # ====== API-based Refetch (Fast) ======
 def refetch_permit_api(vehicle_index=None, card_index=None):
@@ -1997,7 +1789,6 @@ Examples:
 
     parser.add_argument('--vehicle', type=int, help='Vehicle index (0-based, see config/info_cars.json)')
     parser.add_argument('--card', type=int, help='Payment card index (0-based, see config/info_payment_cards.json)')
-    parser.add_argument('--no-github', action='store_true', help='Skip GitHub commit and push')
     parser.add_argument('--parse-only', action='store_true', help='Only parse existing PDF without buying new permit')
     parser.add_argument('--pdf', type=str, help='Path to specific PDF file to parse (use with --parse-only)')
     parser.add_argument('--refetch', action='store_true', help='Refetch existing permit (searches by plate + last 4 card digits)')
@@ -2020,7 +1811,7 @@ Examples:
     # valid day, without buying anything. The device can't flip itself while unpowered.
     if args.refresh_display:
         plate = _plate_for_index(args.vehicle if args.vehicle is not None else resolve_default_vehicle_index())
-        refresh_active_display(plate, no_github=args.no_github)
+        refresh_active_display(plate)
         print(bcolors.OKCYAN + "Display refresh complete. Exiting." + bcolors.ENDC)
         sys.exit(0)
 
@@ -2039,7 +1830,7 @@ Examples:
     if args.headless and not args.refetch and not args.parse_only and not args.dry_run:
         # Flip the display to the next permit if it's past 4 PM on the last valid day, even
         # when no buy is needed this run (e.g. the buy already happened earlier today).
-        refresh_active_display(_plate_for_index(args.vehicle), no_github=args.no_github)
+        refresh_active_display(_plate_for_index(args.vehicle))
         if vehicle_covered_tomorrow(args.vehicle):
             log_event(f"Vehicle index {args.vehicle} already covered tomorrow. Skipping buy.", "INFO")
             print(bcolors.OKCYAN + f"Vehicle index {args.vehicle} already covered tomorrow. Nothing to buy." + bcolors.ENDC)
@@ -2097,15 +1888,6 @@ Examples:
         if all(permit_data.values()):
             json_path = Path('permit.json')
             create_permit_json(permit_data, json_path)
-
-            # Push to GitHub if not disabled
-            github_success = True
-            if not args.no_github:
-                github_success = commit_and_push_to_github(json_path, f"Update permit to {permit_data['permit_number']}")
-
-            # Always archive the PDF so it isn't stranded; GitHub push is just a sync side-effect
-            if not github_success and not args.no_github:
-                print(bcolors.WARNING + "GitHub push failed - archiving PDF anyway (display sync may be stale)" + bcolors.ENDC)
             sync_permit_to_server()
             archive_pdf(pdf_path, permit_data.get('permit_number'))
         else:
@@ -2168,15 +1950,6 @@ Examples:
             if all(permit_data.values()):
                 json_path = Path('permit.json')
                 create_permit_json(permit_data, json_path)
-
-                # Push to GitHub if not disabled
-                github_success = True
-                if not args.no_github:
-                    print(bcolors.OKCYAN + "\nPushing to GitHub..." + bcolors.ENDC)
-                    github_success = commit_and_push_to_github(json_path, f"Update permit to {permit_data['permit_number']}")
-
-                if not github_success and not args.no_github:
-                    print(bcolors.WARNING + "GitHub push failed - archiving PDF anyway (display sync may be stale)" + bcolors.ENDC)
                 sync_permit_to_server()
                 archive_pdf(pdf_path, permit_data.get('permit_number'))
 
@@ -2235,14 +2008,6 @@ Examples:
                         if all(permit_data.values()):
                             json_path = Path('permit.json')
                             create_permit_json(permit_data, json_path)
-
-                            github_success = True
-                            if not args.no_github:
-                                print(bcolors.OKCYAN + "\nPushing to GitHub..." + bcolors.ENDC)
-                                github_success = commit_and_push_to_github(json_path, f"Update permit to {permit_data['permit_number']}")
-
-                            if not github_success and not args.no_github:
-                                print(bcolors.WARNING + "GitHub push failed - archiving PDF anyway (display sync may be stale)" + bcolors.ENDC)
                             sync_permit_to_server()
                             archive_pdf(pdf_path, permit_data.get('permit_number'))
 
@@ -2325,7 +2090,7 @@ Examples:
                     # Create JSON (but mark it as a test)
                     json_path = Path('permit.json')
                     create_permit_json(permit_data, json_path)
-                    print(bcolors.WARNING + "\nDRY RUN: permit.json created locally (not pushed to GitHub)" + bcolors.ENDC)
+                    print(bcolors.WARNING + "\nDRY RUN: permit.json created locally" + bcolors.ENDC)
                 else:
                     print(bcolors.FAIL + "\nSome permit data could not be extracted from test PDF" + bcolors.ENDC)
             else:
@@ -2396,20 +2161,10 @@ Examples:
             json_path = Path('permit.json')
             create_permit_json(permit_data, json_path)
 
-            # Push to GitHub if not disabled. We push the permit that should be displayed
-            # *now*, not necessarily the one just bought: if the old permit is still valid
-            # and it's before 4 PM on its last day, keep showing it. The next afternoon
-            # cron run (or this run after 4 PM) flips the display to the new permit.
-            github_success = True
-            if not args.no_github:
-                print(bcolors.OKCYAN + "\nPushing to GitHub..." + bcolors.ENDC)
-            github_success = refresh_active_display(
-                (permit_data.get('plate_number') or '').strip().upper(),
-                no_github=args.no_github, force_push=True
-            )
-
-            if not github_success and not args.no_github:
-                print(bcolors.WARNING + "GitHub push failed - archiving PDF anyway (display sync may be stale)" + bcolors.ENDC)
+            # permit.json holds the permit that should be displayed *now*, not necessarily the
+            # one just bought: if the old permit is still valid and it's before 4 PM on its
+            # last day, keep showing it.
+            refresh_active_display((permit_data.get('plate_number') or '').strip().upper())
             server_sync_success = sync_permit_to_server()
             archive_pdf(pdf_path, permit_data.get('permit_number'))
 
@@ -2431,12 +2186,10 @@ Permit Number: {permit_data['permit_number']}
 Valid From: {permit_data['valid_from']}
 Valid To: {permit_data['valid_to']}
 
-GitHub Push: {'Success' if github_success else 'Failed'}
 Website Sync: {'Success' if server_sync_success else 'Failed'}
 """,
                     html_body=build_success_email_html(
                         vehicle_name, vehicle_plate, permit_data,
-                        github_success,
                         price_change_info=price_change_info
                     )
                 )
