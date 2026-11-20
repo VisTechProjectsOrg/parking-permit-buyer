@@ -19,13 +19,29 @@ $permit['coveredThrough'] = $permit['validTo'] ?? '';
 $latest = parsePermitDt($permit['coveredThrough']);
 $history = file_exists($historyFile) ? (json_decode(file_get_contents($historyFile), true) ?: []) : [];
 $plate = strtoupper($permit['plateNumber'] ?? '');
+$today = (new DateTime())->format('Y-m-d');
+$other = null;  // the other still-relevant permit: the next one, or the expiring one after the 4 PM flip
+$otherFrom = null;
 foreach ($history as $p) {
     if (strtoupper($p['plateNumber'] ?? '') !== $plate) continue;
+    $vf = parsePermitDt($p['validFrom'] ?? '');
     $vt = parsePermitDt($p['validTo'] ?? '');
     if ($vt && (!$latest || $vt > $latest)) {
         $latest = $vt;
         $permit['coveredThrough'] = $p['validTo'];
     }
+    // Earliest not-yet-ended permit other than the main one
+    if ($vf && $vt && $vt->format('Y-m-d') >= $today && ($p['permitNumber'] ?? '') !== ($permit['permitNumber'] ?? '')
+            && (!$otherFrom || $vf < $otherFrom)) {
+        $other = $p;
+        $otherFrom = $vf;
+    }
+}
+
+// The battery display caches this and switches to it on its own at validFrom
+if ($other) {
+    $permit['next'] = array_intersect_key($other, array_flip(
+        ['permitNumber', 'plateNumber', 'validFrom', 'validTo', 'barcodeValue', 'barcodeLabel']));
 }
 
 echo json_encode($permit, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
