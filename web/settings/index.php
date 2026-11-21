@@ -313,14 +313,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $settings['autobuyer']['enabled'] = !$currentEnabled;
             $newState = $settings['autobuyer']['enabled'];
 
-            // Track an optional re-enable date when turning OFF; clear it when turning ON
-            if (!$newState && !empty($_POST['disabled_until']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_POST['disabled_until'])) {
-                $settings['autobuyer']['disabled_until'] = $_POST['disabled_until'];
-            } else {
-                $settings['autobuyer']['disabled_until'] = null;
+            // Optional "next permit starts on" date when turning OFF; cleared when turning ON.
+            // The buyer buys at its 2 AM run for a permit starting the next day, so a permit
+            // starting S is bought on S-1: that's the stored re-enable date (disabled_until).
+            $settings['autobuyer']['disabled_until'] = null;
+            $nextStart = $_POST['next_start'] ?? '';
+            $startOk = true;
+            if (!$newState && $nextStart !== '') {
+                $startOk = preg_match('/^\d{4}-\d{2}-\d{2}$/', $nextStart) && $nextStart >= earliestNextStart();
+                if ($startOk) {
+                    $settings['autobuyer']['disabled_until'] = date('Y-m-d', strtotime($nextStart . ' -1 day'));
+                }
             }
 
-            if (file_put_contents($settingsFile, json_encode($settings, JSON_PRETTY_PRINT))) {
+            if (!$startOk) {
+                $message = 'The next permit can start ' . date('M j', strtotime(earliestNextStart()))
+                    . ' at the earliest (the auto-buyer runs at ' . date('g A', mktime(BUYER_RUN_HOUR)) . ').';
+                $messageType = 'error';
+            } elseif (file_put_contents($settingsFile, json_encode($settings, JSON_PRETTY_PRINT))) {
                 $message = 'Auto-buyer ' . ($newState ? 'enabled' : 'disabled') . '.';
                 $messageType = 'success';
 
@@ -336,7 +346,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             <h2 style='margin: 0 0 16px; color: #333;'>Auto-buyer Setting Changed</h2>
                             <p style='margin: 0 0 16px; color: #666;'>The parking permit auto-buyer has been <strong style='color: $stateColor;'>$stateText</strong>.</p>" .
                             (($settings['autobuyer']['disabled_until'] ?? null) && !$newState
-                                ? "<p style='margin: 0 0 16px; color: #666;'>It will automatically re-enable on <strong>" . date('M j, Y', strtotime($settings['autobuyer']['disabled_until'])) . "</strong>.</p>"
+                                ? "<p style='margin: 0 0 16px; color: #666;'>The next permit will start on <strong>" . date('M j, Y', strtotime($settings['autobuyer']['disabled_until'] . ' +1 day')) . "</strong> (bought the night before).</p>"
                                 : "") .
                             "<p style='margin: 0; font-size: 12px; color: #999;'>Changed at: " . date('M j, Y g:i A') . "<br>From: " . ($_SERVER['REMOTE_ADDR'] ?? 'Unknown') . "</p>
                         </div>
@@ -953,8 +963,9 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
                 $notifFlags['security_alerts'] ?? true,
             ]));
             $disabledUntilSnap = $settings['autobuyer']['disabled_until'] ?? null;
+            // Shown as the day the next permit starts: the buy runs on disabled_until, for the day after
             $untilSnapLabel = ($disabledUntilSnap && preg_match('/^\d{4}-\d{2}-\d{2}$/', $disabledUntilSnap))
-                ? date('M j, Y', strtotime($disabledUntilSnap)) : null;
+                ? date('M j', strtotime($disabledUntilSnap . ' +1 day')) : null;
             ?>
             <div class="card">
                 <div class="header">
@@ -965,7 +976,7 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
                     <span class="snapshot-value">
                         <span class="status-badge <?= $autobuyerEnabled ? 'on' : 'off' ?>"><?= $autobuyerEnabled ? 'ON' : 'OFF' ?></span>
                         <?php if (!$autobuyerEnabled && $untilSnapLabel): ?>
-                            <span class="small-meta">re-enables <?= htmlspecialchars($untilSnapLabel) ?></span>
+                            <span class="small-meta">next permit starts <?= htmlspecialchars($untilSnapLabel) ?></span>
                         <?php endif; ?>
                     </span>
                 </div>
@@ -1010,12 +1021,12 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
                 $disabledUntil = $settings['autobuyer']['disabled_until'] ?? null;
                 $untilLabel = null;
                 if ($disabledUntil && preg_match('/^\d{4}-\d{2}-\d{2}$/', $disabledUntil)) {
-                    $untilLabel = date('M j, Y', strtotime($disabledUntil));
+                    $untilLabel = date('M j, Y', strtotime($disabledUntil . ' +1 day'));
                 }
                 ?>
                 <div class="warning">
                     <?php if ($untilLabel): ?>
-                        Auto-buyer is disabled. It will automatically re-enable on <strong><?= htmlspecialchars($untilLabel) ?></strong>.
+                        Auto-buyer is paused. The next permit starts <strong><?= htmlspecialchars($untilLabel) ?></strong>.
                     <?php else: ?>
                         Auto-buyer is disabled. Permits will NOT be purchased automatically until re-enabled.
                     <?php endif; ?>
@@ -1149,9 +1160,9 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
                 <?php if ($autobuyerEnabled): ?>
                 <div class="modal-confirm-msg">Disable the auto-buyer? No permits will be purchased until re-enabled.</div>
                 <div class="modal-date-wrapper">
-                    <label for="disabledUntilInput" class="modal-date-label">Auto-re-enable on (optional)</label>
-                    <input type="date" name="disabled_until" id="disabledUntilInput" class="modal-input" min="<?= date('Y-m-d', strtotime('+1 day')) ?>">
-                    <div class="modal-date-hint">Leave blank to disable indefinitely.</div>
+                    <label for="disabledUntilInput" class="modal-date-label">Next permit starts on (optional)</label>
+                    <input type="date" name="next_start" id="disabledUntilInput" class="modal-input" min="<?= earliestNextStart() ?>" max="<?= date('Y-m-d', strtotime('+60 days')) ?>">
+                    <div class="modal-date-hint">Away for a few days? Pick when you need a permit again. Leave blank to turn it off until you turn it back on.</div>
                 </div>
                 <?php else: ?>
                 <div class="modal-confirm-msg">Re-enable the auto-buyer? Permits will resume on the next scheduled run.</div>
