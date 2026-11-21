@@ -32,8 +32,11 @@ the next permit should start, instead of a re-enable date that's off by one.
   "Auto-buy <date>" instead of "Not bought", and skips the "not covered" alerts until S.
 - App: optional heads-up the evening before a buy ("auto-buys tonight at 2 AM") with a
   "Skip or pause" button that opens this settings page in the app. Switch in Notification Settings.
-- Later: past-midnight "need a permit today" goes through Buy now with `--start-today`, once the
-  `feature/buy-now` branch is merged. Buying several days ahead (above) stays a plan.
+- Later: past-midnight "need a permit today" needs a Buy now button that doesn't exist yet (the old
+  `feature/buy-now` branch is merged but holds no Buy now code). It would start the buyer in the
+  background with `--start-today` after midnight, behind a lock so it can't double-buy with the
+  2 AM cron; test with the buyer's dry-run mode first. Buying several days ahead (above) also
+  needs reworking "next permit starts on", which assumes the buy runs the night before the start.
 
 ## TODO (web / buyer app)
 - [x] Rotated the leaked GitHub token (old token printed to the log by the buyer's push; rotated 2026-07-09).
