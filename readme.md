@@ -15,7 +15,7 @@ Also, the City of Toronto won't let me buy a yearly permit, requires the permit 
 - **Buy new permits** - Fully automated: fills forms, submits payment, downloads PDF
 - **Refetch existing permits** - Search by plate + card, download PDF
 - **PDF parsing** - Extracts permit data (number, dates, barcode)
-- **Display feed** - Serves the current permit at `/api/permit.php`; the Android app syncs it to the ESP32 display
+- **Display feed** - Serves the current permit at `/api/permit`; the Android app syncs it to the ESP32 display
 - **Interactive or CLI mode** - Run with prompts or fully automated with flags
 
 ## Quick Start

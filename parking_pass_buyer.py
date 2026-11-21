@@ -277,7 +277,7 @@ def refresh_active_display(plate):
 
     Handles the expiring->new flip at DISPLAY_FLIP_HOUR on the last valid day, regardless of
     when the buy actually ran. No-op when permit.json already holds the right permit -- cheap
-    to call on every cron run. The site's /api/permit.php applies the same flip live, so the
+    to call on every cron run. The site's /api/permit applies the same flip live, so the
     app gets the right permit even between runs."""
     permit_path = Path(__file__).parent / 'permit.json'
     permits = load_vehicle_permits(plate)
