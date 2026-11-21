@@ -44,4 +44,19 @@ if ($other) {
     $permit['next'] = $other;
 }
 
+// When the autobuyer will buy the next permit: the 2 AM cron run on the last covered day
+// (keep in sync with the server crontab). A pause with disabled_until lifts after that date.
+const BUY_HOUR = 2;
+$settings = file_exists($settingsFile) ? (json_decode(file_get_contents($settingsFile), true) ?: []) : [];
+$ab = $settings['autobuyer'] ?? [];
+$lastDay = parsePermitDt($permit['coveredThrough']);
+$willBuy = $ab['enabled'] ?? true;
+if (!$willBuy && !empty($ab['disabled_until']) && $lastDay) {
+    $willBuy = substr($ab['disabled_until'], 0, 10) < $lastDay->format('Y-m-d');
+}
+$permit['autobuyer'] = (bool)($ab['enabled'] ?? true);
+if ($willBuy && $lastDay) {
+    $permit['nextBuy'] = $lastDay->format('M d, Y') . ': ' . sprintf('%02d:00', BUY_HOUR);
+}
+
 echo json_encode($permit, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
