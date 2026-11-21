@@ -38,10 +38,10 @@ foreach ($history as $p) {
     }
 }
 
-// The battery display caches this and switches to it on its own at validFrom
+// The battery display caches this and switches to it on its own at validFrom. Full record so
+// the app can show its price and vehicle; the app sends the display only what it draws.
 if ($other) {
-    $permit['next'] = array_intersect_key($other, array_flip(
-        ['permitNumber', 'plateNumber', 'validFrom', 'validTo', 'barcodeValue', 'barcodeLabel']));
+    $permit['next'] = $other;
 }
 
 echo json_encode($permit, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
