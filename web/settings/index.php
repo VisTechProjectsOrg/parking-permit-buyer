@@ -21,6 +21,59 @@ if (!empty($_SESSION['settings_auth']) && !empty($_SESSION['settings_auth_time']
     }
 }
 
+// "Keep me logged in on this device": a random 90-day key in a cookie. Only its SHA-256 is
+// stored (config/remember_tokens.json, locked down by the deploy), so the file is useless to
+// anyone who reads it. Logout drops this device's key, "Log out all devices" drops them all.
+const REMEMBER_COOKIE = 'parking_remember';
+const REMEMBER_DAYS = 90;
+$rememberFile = $basePath . '/config/remember_tokens.json';
+
+function loadRememberTokens($file) {
+    $tokens = file_exists($file) ? (json_decode(file_get_contents($file), true) ?: []) : [];
+    return array_filter($tokens, fn($t) => ($t['expires'] ?? 0) > time());
+}
+
+function setRememberCookie($value, $expires) {
+    setcookie(REMEMBER_COOKIE, $value, [
+        'expires' => $expires, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax',
+        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+    ]);
+}
+
+function rememberThisDevice($file) {
+    $token = bin2hex(random_bytes(32));
+    $tokens = loadRememberTokens($file);
+    $tokens[hash('sha256', $token)] = [
+        'created' => time(),
+        'expires' => time() + REMEMBER_DAYS * 86400,
+        'device' => substr($_SERVER['HTTP_USER_AGENT'] ?? 'unknown', 0, 160),
+    ];
+    file_put_contents($file, json_encode($tokens, JSON_PRETTY_PRINT));
+    @chmod($file, 0600);
+    setRememberCookie($token, time() + REMEMBER_DAYS * 86400);
+}
+
+function isRememberedDevice($file) {
+    $token = $_COOKIE[REMEMBER_COOKIE] ?? '';
+    return preg_match('/^[0-9a-f]{64}$/', $token) && isset(loadRememberTokens($file)[hash('sha256', $token)]);
+}
+
+// Drops this device's key, or every key with $all
+function forgetRememberedDevices($file, $all = false) {
+    $tokens = $all ? [] : loadRememberTokens($file);
+    $token = $_COOKIE[REMEMBER_COOKIE] ?? '';
+    unset($tokens[hash('sha256', $token)]);
+    if (file_exists($file) || $tokens) file_put_contents($file, json_encode($tokens, JSON_PRETTY_PRINT));
+    setRememberCookie('', time() - 3600);
+}
+
+if (!$authed && isRememberedDevice($rememberFile)) {
+    $authed = true;
+    $_SESSION['settings_auth'] = true;
+    $_SESSION['settings_auth_time'] = time();
+    unset($_SESSION['flash_message'], $_SESSION['flash_type']);  // no "session expired" for a remembered device
+}
+
 // One-shot flash from a redirect
 $message = null;
 $messageType = null;
@@ -224,8 +277,9 @@ $clientIp = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'];
 
-    // Logout: clear session and redirect (PRG)
-    if ($action === 'logout') {
+    // Logout: clear session and redirect (PRG). "logout_all" also signs out every remembered device.
+    if ($action === 'logout' || $action === 'logout_all') {
+        forgetRememberedDevices($rememberFile, $action === 'logout_all');
         $_SESSION = [];
         @session_destroy();
         header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
@@ -250,6 +304,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $_SESSION['settings_auth'] = true;
             $_SESSION['settings_auth_time'] = time();
             clearFailedAttempts($rateLimitFile, $clientIp);
+            if (!empty($_POST['remember'])) {
+                rememberThisDevice($rememberFile);
+                // Same switch as the blocked-login alert
+                if ($emailFrom && $emailTo && ($settings['notifications']['security_alerts'] ?? true)) {
+                    $device = htmlspecialchars($_SERVER['HTTP_USER_AGENT'] ?? 'Unknown');
+                    sendSettingsEmail($emailTo, $emailFrom, $emailAppPassword, "Parking settings: new device remembered",
+                        "<html><body style='font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px;'>"
+                        . "<div style='max-width: 400px; margin: 0 auto; background: white; border-radius: 8px; padding: 24px;'>"
+                        . "<h2 style='margin: 0 0 16px; color: #333;'>New device remembered</h2>"
+                        . "<p style='margin: 0 0 16px; color: #666;'>A device logged in to the parking settings and will stay logged in for " . REMEMBER_DAYS . " days. If this wasn't you, change the settings password and use <strong>Log out all devices</strong>.</p>"
+                        . "<p style='margin: 0; font-size: 12px; color: #999;'>" . date('M j, Y g:i A') . "<br>From: "
+                        . htmlspecialchars($clientIp) . "<br>" . $device . "</p></div></body></html>");
+                }
+            }
             $_SESSION['flash_message'] = 'Logged in.';
             $_SESSION['flash_type'] = 'success';
             header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
@@ -706,6 +774,17 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             line-height: 1.2;
             font-family: inherit;
         }
+        .logout-floating button + button { margin-left: 6px; }
+        .remember-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 12px 0 4px;
+            font-size: 14px;
+            color: #cbd5e1;
+            cursor: pointer;
+        }
+        .remember-row input { width: 18px; height: 18px; margin: 0; }
         .logout-floating button:hover {
             background: #343b4f;
             border-color: #f44336;
@@ -934,8 +1013,8 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
 <body>
     <?php if ($authed): ?>
         <form method="POST" class="logout-floating">
-            <input type="hidden" name="action" value="logout">
-            <button type="submit">Logout</button>
+            <button type="submit" name="action" value="logout">Logout</button>
+            <button type="submit" name="action" value="logout_all">Log out all devices</button>
         </form>
     <?php endif; ?>
 
@@ -1143,6 +1222,11 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
                         </svg>
                     </button>
                 </div>
+                <?php // Ticked by default inside the ParkPass app (Android WebView), not in a browser ?>
+                <label class="remember-row">
+                    <input type="checkbox" name="remember" value="1" <?= strpos($_SERVER['HTTP_USER_AGENT'] ?? '', '; wv)') !== false ? 'checked' : '' ?>>
+                    Keep me logged in on this device
+                </label>
                 <div class="modal-buttons">
                     <button type="button" class="modal-btn cancel" onclick="hideLoginModal()">Cancel</button>
                     <button type="submit" class="modal-btn confirm save">Log in</button>
