@@ -21,6 +21,20 @@ current permit's expiry + 1 day** (currently hardcoded to "tomorrow"). Confirmed
 accepts a future start date (verified 2026-06-25: bought Valid-From Jul 02 on Jun 25). Full design
 in the display repo's NOTES.md ("Set-and-forget sync design").
 
+### Skip while away: "next permit starts on" (in progress 2026-11-21)
+Goal: manage it from the phone. When away for a few days, pause the autobuyer and pick the date
+the next permit should start, instead of a re-enable date that's off by one.
+- The buyer runs once a day at 2 AM and buys a permit starting tomorrow. So a permit starting S
+  is bought at the run on S-1: the settings page stores `disabled_until = S-1` (buyer unchanged).
+- Earliest S: tomorrow before 2 AM (tonight's run can still buy), else the day after tomorrow.
+  Enforced in the date picker and on save.
+- `/api/permit` reports a pause: `resumesOn` (= S) and `nextBuy` = S-1 at 02:00, so the app shows
+  "Auto-buy <date>" instead of "Not bought", and skips the "not covered" alerts until S.
+- App: optional heads-up the evening before a buy ("auto-buys tonight at 2 AM") with a
+  "Skip or pause" button that opens this settings page in the app. Switch in Notification Settings.
+- Later: past-midnight "need a permit today" goes through Buy now with `--start-today`, once the
+  `feature/buy-now` branch is merged. Buying several days ahead (above) stays a plan.
+
 ## TODO (web / buyer app)
 - [x] Rotated the leaked GitHub token (old token printed to the log by the buyer's push; rotated 2026-07-09).
 - [ ] Fix the buyer's token-push path: it builds a broken token URL ("Bad hostname") and rewrites the

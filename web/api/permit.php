@@ -44,19 +44,23 @@ if ($other) {
     $permit['next'] = $other;
 }
 
-// When the autobuyer will buy the next permit: the 2 AM cron run on the last covered day
-// (keep in sync with the server crontab). A pause with disabled_until lifts after that date.
-const BUY_HOUR = 2;
+// When the autobuyer will buy the next permit: its daily run (BUYER_RUN_HOUR) on the last covered
+// day. A pause with a re-enable date (disabled_until, "skip while away") moves the buy to that day,
+// and the next permit then starts the day after it: resumesOn, so the app knows the gap is planned.
 $settings = file_exists($settingsFile) ? (json_decode(file_get_contents($settingsFile), true) ?: []) : [];
 $ab = $settings['autobuyer'] ?? [];
 $lastDay = parsePermitDt($permit['coveredThrough']);
-$willBuy = $ab['enabled'] ?? true;
-if (!$willBuy && !empty($ab['disabled_until']) && $lastDay) {
-    $willBuy = substr($ab['disabled_until'], 0, 10) < $lastDay->format('Y-m-d');
-}
-$permit['autobuyer'] = (bool)($ab['enabled'] ?? true);
-if ($willBuy && $lastDay) {
-    $permit['nextBuy'] = $lastDay->format('M d, Y') . ': ' . sprintf('%02d:00', BUY_HOUR);
+$enabled = $ab['enabled'] ?? true;
+$until = (!$enabled && !empty($ab['disabled_until']))
+    ? DateTime::createFromFormat('!Y-m-d', substr($ab['disabled_until'], 0, 10)) : null;
+$permit['autobuyer'] = (bool)$enabled;
+if ($lastDay && ($enabled || $until)) {
+    $paused = $until && $until->format('Y-m-d') > $lastDay->format('Y-m-d');
+    $buyDay = $paused ? $until : $lastDay;
+    $permit['nextBuy'] = $buyDay->format('M d, Y') . ': ' . sprintf('%02d:00', BUYER_RUN_HOUR);
+    if ($paused) {
+        $permit['resumesOn'] = (clone $until)->modify('+1 day')->format('M d, Y');
+    }
 }
 
 echo json_encode($permit, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);

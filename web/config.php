@@ -26,3 +26,14 @@ if ($isLocal) {
     $envFile = $basePath . '/.env';
     $urlBase = '';
 }
+
+// The autobuyer's daily cron run (keep in sync with the server crontab). Each run buys a
+// permit starting the next day if the car isn't covered tomorrow.
+const BUYER_RUN_HOUR = 2;
+
+// Earliest date a paused autobuyer can have the next permit start: tomorrow while tonight's
+// run is still ahead (before BUYER_RUN_HOUR), otherwise the day after tomorrow. Y-m-d.
+function earliestNextStart() {
+    $days = (int)date('G') < BUYER_RUN_HOUR ? 1 : 2;
+    return date('Y-m-d', strtotime("+$days days"));
+}
