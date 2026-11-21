@@ -749,32 +749,7 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             color-scheme: dark;
         }
         /* Floating Logout button (top-right) shown when logged in */
-        .logout-floating {
-            position: fixed;
-            top: 12px;
-            right: 12px;
-            z-index: 50;
-            margin: 0;
-            padding: 0;
-            border: 0;
-            background: transparent;
-            display: inline-block;
-            line-height: 1;
-        }
-        .logout-floating button {
-            background: #2a3142;
-            border: 1px solid #3a4255;
-            color: #cbd5e1;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            line-height: 1.2;
-            font-family: inherit;
-        }
-        .devices-form { margin: 8px 0 0; text-align: right; }
+        .devices-form { margin: 8px 0 0; display: flex; justify-content: space-between; }
         .link-btn {
             background: none;
             border: 0;
@@ -796,11 +771,6 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             cursor: pointer;
         }
         .remember-row input { width: 18px; height: 18px; margin: 0; }
-        .logout-floating button:hover {
-            background: #343b4f;
-            border-color: #f44336;
-            color: #f44336;
-        }
         /* Slide-in toast notifications (replacing inline flash banner) */
         .toast {
             position: fixed;
@@ -820,8 +790,6 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
         .toast.success { background: #2e7d32; }
         .toast.error { background: #c62828; }
         .toast.info { background: #1976d2; }
-        /* When the floating logout AND a toast are both shown, stack the toast just below */
-        .logout-floating + .toast { top: 56px; }
         /* Read-only snapshot card shown when not logged in */
         .snapshot-row {
             display: flex;
@@ -1022,11 +990,6 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
     </style>
 </head>
 <body>
-    <?php if ($authed): ?>
-        <form method="POST" class="logout-floating">
-            <button type="submit" name="action" value="logout">Logout</button>
-        </form>
-    <?php endif; ?>
 
     <?php if ($message): ?>
         <div class="toast <?= htmlspecialchars($messageType ?: 'info') ?>" id="toast"><?= htmlspecialchars($message) ?></div>
@@ -1216,17 +1179,18 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
         <?php $rememberedCount = count(loadRememberTokens($rememberFile)); ?>
         <div class="card">
             <div class="header">
-                <span class="title">Devices</span>
+                <span class="title">Account</span>
             </div>
             <div class="info-row">
                 <span class="info-label">Staying logged in</span>
                 <span class="info-value"><?= $rememberedCount ?> <?= $rememberedCount === 1 ? 'device' : 'devices' ?></span>
             </div>
-            <?php if ($rememberedCount > 0): ?>
             <form method="POST" class="devices-form">
+                <button type="submit" name="action" value="logout" class="link-btn">Log out</button>
+                <?php if ($rememberedCount > 0): ?>
                 <button type="submit" name="action" value="logout_all" class="link-btn danger">Log out all devices</button>
+                <?php endif; ?>
             </form>
-            <?php endif; ?>
         </div>
         <?php endif; ?>
 
