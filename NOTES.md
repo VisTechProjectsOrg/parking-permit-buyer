@@ -21,6 +21,21 @@ current permit's expiry + 1 day** (currently hardcoded to "tomorrow"). Confirmed
 accepts a future start date (verified 2026-06-25: bought Valid-From Jul 02 on Jun 25). Full design
 in the display repo's NOTES.md ("Set-and-forget sync design").
 
+**Next session checklist (decided 2026-11-21, do this before Buy now):**
+- Why first: today the display only gets the new permit if the phone is near the car on the
+  permit's last day (7 AM-9 PM, every 30 min). A few days' lead turns that into any normal
+  check-in over several days, and makes after-midnight emergencies rare.
+- Setting `autobuyer.lead_days` (0-5, 0 = today's behaviour) with a selector on the settings page.
+- Buy trigger: not covered within `lead_days` days (today: `vehicle_covered_tomorrow`).
+- Start date: current coverage end + 1 (today: hardcoded tomorrow, `get_parking_pass` line ~1617).
+- `/api/permit` `nextBuy`: last covered day minus `lead_days`, at `BUYER_RUN_HOUR` (web/config.php).
+- Skip while away (below) assumes the buy runs the night before the start. Rework so a pause to
+  start S buys at the run `lead_days` before S, and the date picker's earliest S follows.
+- App heads-up fires 12h before `nextBuy`, so it moves earlier on its own. Check its wording
+  ("auto-buys tonight") still reads right.
+- Example to keep working: permit ends Friday, away for the weekend, skip so it starts Monday.
+- Test with the buyer's dry-run mode first, then one real buy to confirm end to end. Real money.
+
 ### Skip while away: "next permit starts on" (done 2026-11-21)
 Goal: manage it from the phone. When away for a few days, pause the autobuyer and pick the date
 the next permit should start, instead of a re-enable date that's off by one.
