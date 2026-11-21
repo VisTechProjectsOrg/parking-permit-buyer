@@ -21,7 +21,7 @@ current permit's expiry + 1 day** (currently hardcoded to "tomorrow"). Confirmed
 accepts a future start date (verified 2026-06-25: bought Valid-From Jul 02 on Jun 25). Full design
 in the display repo's NOTES.md ("Set-and-forget sync design").
 
-### Skip while away: "next permit starts on" (in progress 2026-11-21)
+### Skip while away: "next permit starts on" (done 2026-11-21)
 Goal: manage it from the phone. When away for a few days, pause the autobuyer and pick the date
 the next permit should start, instead of a re-enable date that's off by one.
 - The buyer runs once a day at 2 AM and buys a permit starting tomorrow. So a permit starting S
