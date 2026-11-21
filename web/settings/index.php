@@ -774,7 +774,18 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             line-height: 1.2;
             font-family: inherit;
         }
-        .logout-floating button + button { margin-left: 6px; }
+        .devices-form { margin: 8px 0 0; text-align: right; }
+        .link-btn {
+            background: none;
+            border: 0;
+            padding: 6px 0;
+            font: inherit;
+            font-size: 14px;
+            color: #64b5f6;
+            cursor: pointer;
+        }
+        .link-btn.danger { color: #ef5350; }
+        .link-btn:hover { text-decoration: underline; }
         .remember-row {
             display: flex;
             align-items: center;
@@ -1014,7 +1025,6 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
     <?php if ($authed): ?>
         <form method="POST" class="logout-floating">
             <button type="submit" name="action" value="logout">Logout</button>
-            <button type="submit" name="action" value="logout_all">Log out all devices</button>
         </form>
     <?php endif; ?>
 
@@ -1201,6 +1211,22 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
             </div>
 
             <button type="button" id="notificationSaveBtn" class="save-btn" onclick="showNotificationModal()" style="display: none;">Save Notification Settings</button>
+        </div>
+
+        <?php $rememberedCount = count(loadRememberTokens($rememberFile)); ?>
+        <div class="card">
+            <div class="header">
+                <span class="title">Devices</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Staying logged in</span>
+                <span class="info-value"><?= $rememberedCount ?> <?= $rememberedCount === 1 ? 'device' : 'devices' ?></span>
+            </div>
+            <?php if ($rememberedCount > 0): ?>
+            <form method="POST" class="devices-form">
+                <button type="submit" name="action" value="logout_all" class="link-btn danger">Log out all devices</button>
+            </form>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
 
