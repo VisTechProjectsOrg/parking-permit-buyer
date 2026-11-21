@@ -789,8 +789,8 @@ $notifySecurityAlerts = $notifications['security_alerts'] ?? true;
         .remember-row {
             display: flex;
             align-items: center;
-            gap: 8px;
-            margin: 12px 0 4px;
+            gap: 10px;
+            margin: 18px 0 14px;
             font-size: 14px;
             color: #cbd5e1;
             cursor: pointer;
